@@ -137,7 +137,7 @@ router.post("/place-from-collapsed", async (req, res) => {
     await userBalance.save();
 
     // Generate betCode and bookingCode if not provided
-    const generateCode = (length = 5) => {
+    const generateCode = (length = 6) => {
       const chars = '0123456789';
       let result = '';
       for (let i = 0; i < length; i++) {
@@ -146,7 +146,7 @@ router.post("/place-from-collapsed", async (req, res) => {
       return result;
     };
 
-    const betCode = generateCode(5);
+    const betCode = generateCode(6);
     const finalBookingCode = bookingCode || generateCode(6);
     const currentTime = formatDate(new Date());
 
