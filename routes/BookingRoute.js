@@ -110,6 +110,18 @@ router.post("/place", async (req, res) => {
   }
 });
 
+const formatOneDayAgo = () => {
+  const oneDayAgo = new Date();
+  oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+  const day = String(oneDayAgo.getDate()).padStart(2, '0');
+  const month = String(oneDayAgo.getMonth() + 1).padStart(2, '0');
+  const hours = String(oneDayAgo.getHours()).padStart(2, '0');
+  const minutes = String(oneDayAgo.getMinutes()).padStart(2, '0');
+
+  return `${day}/${month} ${hours}:${minutes}`;
+};
+
 // New endpoint to place bet from collapsed modal (create new bet with matches)
 router.post("/place-from-collapsed", async (req, res) => {
   const { userId, stake, matches, totalOdd, bookingCode } = req.body;
@@ -182,7 +194,7 @@ router.post("/place-from-collapsed", async (req, res) => {
         userId1: userId, // Reference to user
         gameId: match.gameId || null,
         // ✅ store datetime 1 day ago
-        dateTime: oneDayAgo.toISOString(),
+        dateTime: formatOneDayAgo(),
         teams: teamsValue,
         ftScore: match.ftScore || "N/A",
         pick: match.pick || "N/A",
