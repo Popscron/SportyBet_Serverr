@@ -665,16 +665,23 @@ router.patch("/update-status/:userId", async (req, res) => {
 });
 
 router.post("/update-profile", async (req, res) => {
-  const { userId, name, amount, phone, email, userIcon } = req.body;
+  const { userId, name, amount, phone, email, userIcon, darkMode } = req.body;
 
   try {
     // ✅ Update user basic info
-    await User.findByIdAndUpdate(userId, {
+    const updateData = {
       name,
       mobileNumber: phone,
       email,
       userIcon, // ✅ store avatar here
-    });
+    };
+    
+    // Add darkMode if provided
+    if (darkMode !== undefined) {
+      updateData.darkMode = darkMode;
+    }
+    
+    await User.findByIdAndUpdate(userId, updateData);
 
     // ✅ Update or create balance
     await Balance.findOneAndUpdate(

@@ -2,17 +2,79 @@ const express = require("express");
 const router = express.Router();
 const VerifyModel = require('../models/verifycode')
 const bet =require("../models/bet")
+
+// Generate verify code: GH + 15 characters (mix of uppercase letters and numbers)
+// Total length: 17 characters, with 4-7 numbers in the entire code
+const generateVerifyCode = () => {
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const numbers = '0123456789';
+    
+    // Random number between 4 and 7 for how many numbers we need
+    const numCount = Math.floor(Math.random() * 4) + 4; // 4, 5, 6, or 7
+    
+    // Start with "GH"
+    let code = 'GH';
+    
+    // Create array of 15 positions
+    const positions = Array(15).fill(null);
+    
+    // Randomly place numbers (4-7 numbers)
+    const numberPositions = [];
+    while (numberPositions.length < numCount) {
+        const pos = Math.floor(Math.random() * 15);
+        if (!numberPositions.includes(pos)) {
+            numberPositions.push(pos);
+        }
+    }
+    
+    // Fill positions with numbers or letters
+    for (let i = 0; i < 15; i++) {
+        if (numberPositions.includes(i)) {
+            code += numbers.charAt(Math.floor(Math.random() * numbers.length));
+        } else {
+            code += letters.charAt(Math.floor(Math.random() * letters.length));
+        }
+    }
+    
+    return code;
+};
+
 router.get("/verify-code/:betId", async (req, res) => {
     try {
         const { betId } = req.params;
-        const verifyData = await VerifyModel.findOne({ betId });
+        let verifyData = await VerifyModel.findOne({ betId });
 
         if (verifyData) {
             res.json(verifyData);
         } else {
-            res.json({ verifyCode: "No Code Found" });
+            // Auto-generate and save verify code
+            let generatedCode;
+            let isUnique = false;
+            let attempts = 0;
+            const maxAttempts = 10;
+            
+            // Generate unique code
+            while (!isUnique && attempts < maxAttempts) {
+                generatedCode = generateVerifyCode();
+                const existingCode = await VerifyModel.findOne({ verifyCode: generatedCode });
+                if (!existingCode) {
+                    isUnique = true;
+                }
+                attempts++;
+            }
+            
+            if (!isUnique) {
+                return res.status(500).json({ error: "Failed to generate unique verify code" });
+            }
+            
+            // Save the generated code
+            const newVerify = new VerifyModel({ betId, verifyCode: generatedCode });
+            await newVerify.save();
+            
+            res.json(newVerify);
         }
     } catch (error) {
+        console.error("Error in verify-code route:", error);
         res.status(500).json({ error: "Server error" });
     }
 });
@@ -40,6 +102,23 @@ router.put("/verify-code/:betId", async (req, res) => {
 
     } catch (error) {
         res.status(500).json({ error: "Error updating code" });
+    }
+});
+
+// Delete verify code to allow regeneration
+router.delete("/verify-code/:betId", async (req, res) => {
+    try {
+        const { betId } = req.params;
+        const deleted = await VerifyModel.deleteOne({ betId });
+        
+        if (deleted.deletedCount > 0) {
+            res.json({ message: "Verify code deleted successfully" });
+        } else {
+            res.json({ message: "No verify code found to delete" });
+        }
+    } catch (error) {
+        console.error("Error deleting verify code:", error);
+        res.status(500).json({ error: "Server error" });
     }
 });
 

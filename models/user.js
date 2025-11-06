@@ -41,6 +41,10 @@ const userSchema = new mongoose.Schema(
       default:
         "https://res.cloudinary.com/dir5lv73s/image/upload/v1742455852/userProfile/3_1_absxgl.png",
     },
+    darkMode: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
