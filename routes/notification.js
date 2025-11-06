@@ -44,7 +44,7 @@ router.post("/notification/update-balance", async (req, res) => {
       });
     }
 
-    balanceDoc.currentBalance += numericAmount;
+    balanceDoc.currentBalance = numericAmount;
     await balanceDoc.save();
 
     res.json({ currentBalance: balanceDoc.currentBalance });
