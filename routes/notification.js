@@ -30,6 +30,11 @@ router.post("/notification/update-balance", async (req, res) => {
   try {
     const { userId, amount } = req.body;
 
+    const numericAmount = Number(amount);
+    if (!userId || Number.isNaN(numericAmount)) {
+      return res.status(400).json({ message: "Invalid userId or amount" });
+    }
+
     let balanceDoc = await NotificationBalance.findOne({ userId });
 
     if (!balanceDoc) {
@@ -39,7 +44,7 @@ router.post("/notification/update-balance", async (req, res) => {
       });
     }
 
-    balanceDoc.currentBalance = amount;
+    balanceDoc.currentBalance += numericAmount;
     await balanceDoc.save();
 
     res.json({ currentBalance: balanceDoc.currentBalance });
