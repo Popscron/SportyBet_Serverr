@@ -238,7 +238,30 @@ router.get("/multibets/:userId", async (req, res) => {
         if (!updatedBet) {
             return res.status(404).json({ message: "Bet not found." });
         }
-        
+
+        // ✅ Update bet time when match status changes
+    
+            // const formatDate = (date) => {
+            //     const day = date.getDate().toString().padStart(2, "0");
+            //     const month = (date.getMonth() + 1).toString().padStart(2, "0");
+            //     const year = date.getFullYear();
+                
+            //     // Always use current time from device
+            //     const now = new Date();
+            //     const hours = now.getHours().toString().padStart(2, "0");
+            //     const minutes = now.getMinutes().toString().padStart(2, "0");
+                
+            //     return `${day}/${month}, ${hours}:${minutes}`;
+            // };
+
+            // const currentTime = formatDate(new Date());
+            
+            // Update the main bet's date to current time
+            await oddModel.findByIdAndUpdate(
+                updatedBet.userId, // This is the bet ID from the multibet
+                { new: true }
+            );
+
 
         res.json(updatedBet); // ✅ Added this to return the updated bet
     } catch (error) {

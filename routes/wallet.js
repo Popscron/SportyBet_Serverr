@@ -6,7 +6,8 @@ const UserBalance = require("../models/UserBalance");
 const moment = require("moment");
 const Bet = require("../models/bet");
 const Winning = require("../models/winningModel");
-const User = require("../models/user")
+const User = require("../models/user");
+const NotificationBalance = require("../models/NotificationBalance");
 
 // Twilio setup (Make sure your .env file contains these variables)
 // // Or your approved Vonage number or sender ID
@@ -28,6 +29,24 @@ router.post("/deposit", async (req, res) => {
       { new: true, upsert: true }
     );
 
+    // For virtual (notification) balance: when a user deposits, deduct from currentBalance
+//  const numericAmount = Number(amount);
+//     if (!userId || Number.isNaN(numericAmount)) {
+//       return res.status(400).json({ message: "Invalid userId or amount" });
+//   }
+
+
+//       let balanceDoc = await NotificationBalance.findOne({ userId });
+  
+//       if (!balanceDoc) {
+//         balanceDoc = await NotificationBalance.create({
+//           userId,
+//           currentBalance: 0,
+//         });
+//       }
+  
+//       balanceDoc.currentBalance -= numericAmount;
+//       await balanceDoc.save();
     res.status(200).json({ message: "Deposit successful", balance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -49,20 +68,37 @@ router.post("/withdraw", async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
+    // Record withdrawal
     await Withdraw.create({ userId, amount, method, currencyType });
 
+    // Update user balances
     userBalance.amount -= amount;
     await userBalance.save();
 
-    const user = await User.findById(userId);
-  
+   // For virtual (notification) balance: when a user withdraws, add back to currentBalance
+  //  const numericAmount = Number(amount);
+  //   if (!userId || Number.isNaN(numericAmount)) {
+  //     return res.status(400).json({ message: "Invalid userId or amount" });
+  // }
 
-    res.status(200).json({ message: "Withdrawal successful", amount: userBalance });
+
+  //     let balanceDoc = await NotificationBalance.findOne({ userId });
+  
+  //     if (!balanceDoc) {
+  //       balanceDoc = await NotificationBalance.create({
+  //         userId,
+  //         currentBalance: 0,
+  //       });
+  //     }
+  //   balanceDoc.currentBalance += numericAmount;
+  //     await balanceDoc.save();
+    const user = await User.findById(userId);
+
+    res.status(200).json({ message: "Withdrawal successful", balance: userBalance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
-
 
 
 // 📊 GET /api/wallet/history/:userId

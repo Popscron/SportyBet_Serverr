@@ -27,26 +27,37 @@ router.get("/notification/:userId", async (req, res) => {
 
 // ✅ Update balance (add or subtract)
 router.post("/notification/update-balance", async (req, res) => {
-  try {
-    const { userId, amount } = req.body;
+	try {
+		const { userId, amount, mode } = req.body;
 
-    let balanceDoc = await NotificationBalance.findOne({ userId });
+		const numericAmount = Number(amount);
+		if (!userId || Number.isNaN(numericAmount)) {
+			return res.status(400).json({ message: "Invalid userId or amount" });
+		}
 
-    if (!balanceDoc) {
-      balanceDoc = await NotificationBalance.create({
-        userId,
-        currentBalance: 0,
-      });
-    }
+		let balanceDoc = await NotificationBalance.findOne({ userId });
 
-    balanceDoc.currentBalance += amount;
-    await balanceDoc.save();
+		if (!balanceDoc) {
+			balanceDoc = await NotificationBalance.create({
+				userId,
+				currentBalance: 0,
+			});
+		}
 
-    res.json({ currentBalance: balanceDoc.currentBalance });
-  } catch (error) {
-    console.error("Balance Update Error:", error);
-    res.status(500).json({ message: "Failed to update balance" });
-  }
+		// mode: 'set' -> replace currentBalance
+		// any other value (or undefined) -> increment by amount
+		if ((mode || '').toLowerCase() === 'set') {
+			balanceDoc.currentBalance = numericAmount;
+		} else {
+			balanceDoc.currentBalance += numericAmount;
+		}
+		await balanceDoc.save();
+
+		res.json({ currentBalance: balanceDoc.currentBalance });
+	} catch (error) {
+		console.error("Balance Update Error:", error);
+		res.status(500).json({ message: "Failed to update balance" });
+	}
 });
 
 module.exports = router;

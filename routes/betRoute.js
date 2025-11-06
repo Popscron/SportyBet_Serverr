@@ -27,8 +27,8 @@ router.get("/bets/:userId", async (req, res) => {
   }
 });
 
-const generateBookingCode = (length = 8) => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const generateBookingCode = (length = 6) => {
+  const chars = '0123456789';
   let result = '';
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -39,10 +39,10 @@ const generateBookingCode = (length = 8) => {
 // Add a Bet
 router.post("/bets", async (req, res) => {
   try {
-    const { userId, date, betCode, stake, odd } = req.body;
+    const { userId, date,betCode, stake, odd } = req.body;
 
     // Validate required fields
-    if (!userId || !date || !betCode || !stake) {
+    if (!userId || !date  || !betCode || !stake) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
@@ -72,17 +72,18 @@ router.post("/bets", async (req, res) => {
   }
 });
 
+
 router.post("/bets1", async (req, res) => {
   try {
-    const { userId, date, betCode, stake, odd } = req.body;
+    const { userId, date, stake, odd, bookingCode} = req.body;
 
     // Validate required fields
-    if (!userId || !date || !betCode || !stake) {
+    if (!userId || !date || !bookingCode || !stake) {
       return res.status(400).json({ error: "All fields are required" });
     }
 
     // Generate unique booking code
-    const bookingCode = generateBookingCode();
+    const betCode = generateBookingCode(6)
 
     const newBet = new Bet({ userId, date, betCode, stake, odd, bookingCode });
     const savedBet = await newBet.save();
@@ -95,7 +96,6 @@ router.post("/bets1", async (req, res) => {
 });
 
 
-  // Update Odd for a Bet
 router.put("/bets/:betId", async (req, res) => {
   try {
     const { betId } = req.params;
