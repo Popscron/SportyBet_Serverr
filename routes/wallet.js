@@ -66,7 +66,7 @@ router.post("/withdraw", async (req, res) => {
 
    // For virtual (notification) balance: when a user withdraws, add back to currentBalance
    const currentBalance = await NotificationBalance.findOne({userId})
-  currentBalance.currentBalance + amount 
+  currentBalance.currentBalance  = currentBalance.currentBalance + amount 
   await NotificationBalance.save()
 
     const user = await User.findById(userId);
