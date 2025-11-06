@@ -30,12 +30,23 @@ router.post("/deposit", async (req, res) => {
     );
 
     // For virtual (notification) balance: when a user deposits, deduct from currentBalance
-    await NotificationBalance.findOneAndUpdate(
-      { userId },
-      { $inc: { currentBalance: -amount } },
-      { new: true, upsert: true }
-    );
+ const numericAmount = Number(amount);
+    if (!userId || Number.isNaN(numericAmount)) {
+      return res.status(400).json({ message: "Invalid userId or amount" });
+  }
 
+
+      let balanceDoc = await NotificationBalance.findOne({ userId });
+  
+      if (!balanceDoc) {
+        balanceDoc = await NotificationBalance.create({
+          userId,
+          currentBalance: 0,
+        });
+      }
+  
+      balanceDoc.currentBalance -= numericAmount;
+      await balanceDoc.save();
     res.status(200).json({ message: "Deposit successful", balance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -65,12 +76,22 @@ router.post("/withdraw", async (req, res) => {
     await userBalance.save();
 
    // For virtual (notification) balance: when a user withdraws, add back to currentBalance
-   await NotificationBalance.findOneAndUpdate(
-     { userId },
-     { $inc: { currentBalance: amount } },
-     { new: true, upsert: true }
-   );
+   const numericAmount = Number(amount);
+    if (!userId || Number.isNaN(numericAmount)) {
+      return res.status(400).json({ message: "Invalid userId or amount" });
+  }
 
+
+      let balanceDoc = await NotificationBalance.findOne({ userId });
+  
+      if (!balanceDoc) {
+        balanceDoc = await NotificationBalance.create({
+          userId,
+          currentBalance: 0,
+        });
+      }
+ balanceDoc.currentBalance += numericAmount;
+      await balanceDoc.save();
     const user = await User.findById(userId);
 
     res.status(200).json({ message: "Withdrawal successful", balance: userBalance });
