@@ -63,11 +63,11 @@ router.post("/withdraw", async (req, res) => {
     userBalance.amount -= amount;
     await userBalance.save();
 
-    await NotificationBalance.findOneAndUpdate(
-      { userId },
-      { $inc: { amount: -amount } },
-      { new: true }
-    );
+   const notifAfter = await NotificationBalance.findOneAndUpdate(
+  { userId },
+  { $inc: { currentBalance: -amount } },
+  { new: true, upsert: true } // upsert probably optional for withdraw
+);
 
     const user = await User.findById(userId);
 
