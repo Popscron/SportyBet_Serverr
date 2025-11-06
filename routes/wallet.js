@@ -6,7 +6,8 @@ const UserBalance = require("../models/UserBalance");
 const moment = require("moment");
 const Bet = require("../models/bet");
 const Winning = require("../models/winningModel");
-const User = require("../models/user")
+const User = require("../models/user");
+const NotificationBalance = require("../models/NotificationBalance");
 
 // Twilio setup (Make sure your .env file contains these variables)
 // // Or your approved Vonage number or sender ID
@@ -23,6 +24,12 @@ router.post("/deposit", async (req, res) => {
     await Deposit.create({ userId, amount, currencyType });
 
     const balance = await UserBalance.findOneAndUpdate(
+      { userId },
+      { $inc: { amount: amount }, $set: { currencyType } },
+      { new: true, upsert: true }
+    );
+
+    await NotificationBalance.findOneAndUpdate(
       { userId },
       { $inc: { amount: amount }, $set: { currencyType } },
       { new: true, upsert: true }
@@ -49,20 +56,26 @@ router.post("/withdraw", async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
+    // Record withdrawal
     await Withdraw.create({ userId, amount, method, currencyType });
 
+    // Update user balances
     userBalance.amount -= amount;
     await userBalance.save();
 
-    const user = await User.findById(userId);
-  
+    await NotificationBalance.findOneAndUpdate(
+      { userId },
+      { $inc: { amount: -amount } },
+      { new: true }
+    );
 
-    res.status(200).json({ message: "Withdrawal successful", amount: userBalance });
+    const user = await User.findById(userId);
+
+    res.status(200).json({ message: "Withdrawal successful", balance: userBalance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
-
 
 
 // 📊 GET /api/wallet/history/:userId
