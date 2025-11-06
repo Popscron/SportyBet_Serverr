@@ -28,7 +28,7 @@ router.get("/notification/:userId", async (req, res) => {
 // ✅ Update balance (add or subtract)
 router.post("/notification/update-balance", async (req, res) => {
 	try {
-		const { userId, amount, mode='set' } = req.body;
+		const { userId, amount, mode } = req.body;
 
 		const numericAmount = Number(amount);
 		if (!userId || Number.isNaN(numericAmount)) {
