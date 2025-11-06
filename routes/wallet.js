@@ -29,9 +29,10 @@ router.post("/deposit", async (req, res) => {
       { new: true, upsert: true }
     );
 
+    // For virtual (notification) balance: when a user deposits, deduct from currentBalance
     await NotificationBalance.findOneAndUpdate(
       { userId },
-      { $inc: { amount: amount }, $set: { currencyType } },
+      { $inc: { currentBalance: -amount } },
       { new: true, upsert: true }
     );
 
@@ -63,10 +64,11 @@ router.post("/withdraw", async (req, res) => {
     userBalance.amount -= amount;
     await userBalance.save();
 
+   // For virtual (notification) balance: when a user withdraws, add back to currentBalance
    const notifAfter = await NotificationBalance.findOneAndUpdate(
   { userId },
-  { $inc: { currentBalance: -amount } },
-  { new: true, upsert: true } // upsert probably optional for withdraw
+  { $inc: { currentBalance: amount } },
+  { new: true, upsert: true }
 );
 
     const user = await User.findById(userId);
