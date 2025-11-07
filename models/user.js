@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema(
     subscription: {
       type: String,
       enum: ["Basic", "Premium"],
-      default: "Basic",
+      default: "Premium",
     },
     expiry: { type: Date },
     expiryPeriod: {
