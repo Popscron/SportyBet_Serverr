@@ -30,7 +30,9 @@ const userSchema = new mongoose.Schema(
     },
 
     grandAuditLimit: { type: Number, default: 0 },
-    token: { type: String },
+    token: { type: String }, // Keep for backward compatibility
+    tokens: { type: [String], default: [] }, // Array of active tokens
+    maxDevices: { type: Number, default: 1, enum: [1, 2] }, // Maximum number of devices allowed (1 or 2)
     role: {
       type: String,
       default: "user",

@@ -65,7 +65,8 @@ router.post("/register", async (req, res) => {
     subscription,
     role,
     mobileNumber,
-    expiryPeriod
+    expiryPeriod,
+    maxDevices // Allow setting maxDevices (1 or 2) when creating user
   } = req.body;
 
   console.log("Register request:", req.body);
@@ -122,6 +123,9 @@ router.post("/register", async (req, res) => {
 
     const expiryValue = expiryMap[expiryPeriod];
 
+    // ✅ Validate maxDevices if provided (must be 1 or 2)
+    const deviceLimit = maxDevices && (maxDevices === 1 || maxDevices === 2) ? maxDevices : 1;
+
     // ✅ Create and save new user
     const newUser = new User({
       name,
@@ -133,6 +137,7 @@ router.post("/register", async (req, res) => {
       expiry,
       expiryPeriod: expiryValue,
       role,
+      maxDevices: deviceLimit, // Set maxDevices (defaults to 1 if not provided or invalid)
     });
 
     await newUser.save();
@@ -206,8 +211,23 @@ router.post("/login", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // ✅ Save token in DB
-    await User.findByIdAndUpdate(user._id, { token });
+    // ✅ Handle multiple tokens based on maxDevices limit
+    const maxDevices = user.maxDevices || 1; // Default to 1 if not set
+    let tokens = user.tokens || []; // Get current tokens array
+    
+    // If user already has maxDevices tokens, remove the oldest one (FIFO)
+    if (tokens.length >= maxDevices) {
+      tokens.shift(); // Remove oldest token
+    }
+    
+    // Add new token to the array
+    tokens.push(token);
+    
+    // ✅ Save tokens array and single token (for backward compatibility) in DB
+    await User.findByIdAndUpdate(user._id, { 
+      token, // Keep single token for backward compatibility
+      tokens // Save tokens array
+    });
 
     // ✅ Track device information if provided
     if (deviceInfo) {
@@ -889,8 +909,23 @@ router.put("/reactivate-account", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // Save token in DB
-    await User.findByIdAndUpdate(user._id, { token });
+    // ✅ Handle multiple tokens based on maxDevices limit
+    const maxDevices = user.maxDevices || 1;
+    let tokens = user.tokens || [];
+    
+    // If user already has maxDevices tokens, remove the oldest one (FIFO)
+    if (tokens.length >= maxDevices) {
+      tokens.shift();
+    }
+    
+    // Add new token to the array
+    tokens.push(token);
+
+    // Save tokens array and single token (for backward compatibility) in DB
+    await User.findByIdAndUpdate(user._id, { 
+      token, // Keep single token for backward compatibility
+      tokens // Save tokens array
+    });
 
     res.json({
       success: true,
@@ -1041,6 +1076,53 @@ router.put("/admin/password-change/reject/:id", async (req, res) => {
   } catch (error) {
     console.error("Error rejecting password change request:", error);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update maxDevices for a user (admin can set 1 or 2 devices)
+router.put("/update-max-devices", async (req, res) => {
+  try {
+    const { userId, maxDevices } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "userId is required" });
+    }
+
+    // Validate maxDevices must be 1 or 2
+    if (maxDevices !== 1 && maxDevices !== 2) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "maxDevices must be 1 or 2" 
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Update maxDevices
+    user.maxDevices = maxDevices;
+    
+    // If new limit is less than current tokens, remove oldest tokens
+    const currentTokens = user.tokens || [];
+    if (currentTokens.length > maxDevices) {
+      // Remove oldest tokens to match new limit
+      const tokensToKeep = currentTokens.slice(-maxDevices);
+      user.tokens = tokensToKeep;
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `Max devices updated to ${maxDevices}`,
+      maxDevices: user.maxDevices,
+      activeTokens: user.tokens.length
+    });
+  } catch (error) {
+    console.error("Error updating max devices:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
