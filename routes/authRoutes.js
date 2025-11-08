@@ -755,19 +755,21 @@ router.put("/update-grand-audit-limit", async (req, res) => {
       return res.status(400).json({ message: "grandAuditLimit must be a non-negative number" });
     }
 
-    // Find user
-    const user = await User.findById(userId);
-    if (!user) {
+    // Update only the grandAuditLimit field using findByIdAndUpdate
+    // This avoids triggering validation on other fields like subscription
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: { grandAuditLimit: parsedLimit } },
+      { new: true, runValidators: false } // runValidators: false to avoid validating unchanged fields
+    );
+
+    if (!updatedUser) {
       console.log("Validation failed: User not found with userId:", userId);
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Update and save
-    user.grandAuditLimit = parsedLimit;
-    await user.save();
-
     console.log("Successfully updated grand audit limit for user:", userId, "to:", parsedLimit);
-    return res.status(200).json({ message: "Grand audit limit updated", grandAuditLimit: user.grandAuditLimit });
+    return res.status(200).json({ message: "Grand audit limit updated", grandAuditLimit: updatedUser.grandAuditLimit });
   } catch (error) {
     console.error("Error updating grand audit limit:", error);
     // Handle validation errors specifically
