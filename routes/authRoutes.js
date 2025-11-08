@@ -717,27 +717,29 @@ router.put("/update-grand-audit-limit", async (req, res) => {
       return res.status(400).json({ message: "Invalid userId format" });
     }
 
-    // Validate grandAuditLimit - check for undefined, null, or empty string
-    // Also handle the case where it might be a string "0" or empty string
+    // Validate grandAuditLimit - allow 0 as a valid value
+    // Check for undefined or null (but allow 0)
     if (grandAuditLimit === undefined || grandAuditLimit === null) {
       console.log("Validation failed: grandAuditLimit is undefined or null");
       return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
     }
 
     // Convert to string first to check for empty string, then parse
+    // Handle both number and string inputs
     const limitString = String(grandAuditLimit).trim();
-    if (limitString === "" || limitString === "null" || limitString === "undefined") {
+    if (limitString === "" || limitString === "null" || limitString === "undefined" || limitString === "NaN") {
       console.log("Validation failed: grandAuditLimit is empty or invalid string:", limitString);
       return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
     }
 
-    // Parse and validate the number
+    // Parse and validate the number - allow 0 as valid
     const parsedLimit = Number(limitString);
-    if (Number.isNaN(parsedLimit)) {
+    if (Number.isNaN(parsedLimit) || !isFinite(parsedLimit)) {
       console.log("Validation failed: grandAuditLimit is not a valid number:", grandAuditLimit);
       return res.status(400).json({ message: "grandAuditLimit must be a valid number" });
     }
 
+    // Allow 0 and positive numbers, reject negative
     if (parsedLimit < 0) {
       console.log("Validation failed: grandAuditLimit is negative:", parsedLimit);
       return res.status(400).json({ message: "grandAuditLimit must be a non-negative number" });
