@@ -701,36 +701,52 @@ router.post("/update-profile", async (req, res) => {
 // Update user's grand audit limit
 router.put("/update-grand-audit-limit", async (req, res) => {
   try {
+    console.log("Received request body:", req.body); // Debug log
+    
     const { userId, grandAuditLimit } = req.body;
 
     // Validate userId
     if (!userId) {
+      console.log("Validation failed: userId is missing");
       return res.status(400).json({ message: "userId is required" });
     }
 
     // Validate userId is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.log("Validation failed: Invalid userId format:", userId);
       return res.status(400).json({ message: "Invalid userId format" });
     }
 
     // Validate grandAuditLimit - check for undefined, null, or empty string
-    if (grandAuditLimit === undefined || grandAuditLimit === null || grandAuditLimit === "") {
+    // Also handle the case where it might be a string "0" or empty string
+    if (grandAuditLimit === undefined || grandAuditLimit === null) {
+      console.log("Validation failed: grandAuditLimit is undefined or null");
+      return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
+    }
+
+    // Convert to string first to check for empty string, then parse
+    const limitString = String(grandAuditLimit).trim();
+    if (limitString === "" || limitString === "null" || limitString === "undefined") {
+      console.log("Validation failed: grandAuditLimit is empty or invalid string:", limitString);
       return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
     }
 
     // Parse and validate the number
-    const parsedLimit = Number(grandAuditLimit);
+    const parsedLimit = Number(limitString);
     if (Number.isNaN(parsedLimit)) {
+      console.log("Validation failed: grandAuditLimit is not a valid number:", grandAuditLimit);
       return res.status(400).json({ message: "grandAuditLimit must be a valid number" });
     }
 
     if (parsedLimit < 0) {
+      console.log("Validation failed: grandAuditLimit is negative:", parsedLimit);
       return res.status(400).json({ message: "grandAuditLimit must be a non-negative number" });
     }
 
     // Find user
     const user = await User.findById(userId);
     if (!user) {
+      console.log("Validation failed: User not found with userId:", userId);
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -738,6 +754,7 @@ router.put("/update-grand-audit-limit", async (req, res) => {
     user.grandAuditLimit = parsedLimit;
     await user.save();
 
+    console.log("Successfully updated grand audit limit for user:", userId, "to:", parsedLimit);
     return res.status(200).json({ message: "Grand audit limit updated", grandAuditLimit: user.grandAuditLimit });
   } catch (error) {
     console.error("Error updating grand audit limit:", error);
