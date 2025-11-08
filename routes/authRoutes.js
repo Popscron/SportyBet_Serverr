@@ -724,16 +724,26 @@ router.put("/update-grand-audit-limit", async (req, res) => {
       return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
     }
 
-    // Convert to string first to check for empty string, then parse
-    // Handle both number and string inputs
-    const limitString = String(grandAuditLimit).trim();
-    if (limitString === "" || limitString === "null" || limitString === "undefined" || limitString === "NaN") {
-      console.log("Validation failed: grandAuditLimit is empty or invalid string:", limitString);
-      return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
+    // Handle both number and string inputs - convert to number directly
+    let parsedLimit;
+    
+    // If it's already a number, use it directly
+    if (typeof grandAuditLimit === 'number') {
+      parsedLimit = grandAuditLimit;
+    } else if (typeof grandAuditLimit === 'string') {
+      // If it's a string, trim and parse
+      const trimmed = grandAuditLimit.trim();
+      if (trimmed === "" || trimmed === "null" || trimmed === "undefined" || trimmed === "NaN") {
+        console.log("Validation failed: grandAuditLimit is empty or invalid string:", trimmed);
+        return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
+      }
+      parsedLimit = Number(trimmed);
+    } else {
+      // For any other type, try to convert
+      parsedLimit = Number(grandAuditLimit);
     }
 
-    // Parse and validate the number - allow 0 as valid
-    const parsedLimit = Number(limitString);
+    // Validate the parsed number
     if (Number.isNaN(parsedLimit) || !isFinite(parsedLimit)) {
       console.log("Validation failed: grandAuditLimit is not a valid number:", grandAuditLimit);
       return res.status(400).json({ message: "grandAuditLimit must be a valid number" });
