@@ -18,7 +18,7 @@ const formatDate = (date) => {
   const hours = now.getHours().toString().padStart(2, "0");
   const minutes = now.getMinutes().toString().padStart(2, "0");
 
-  return `${day}/${month} ${hours}:${minutes}`;
+  return `${day}/${month}, ${hours}:${minutes}`;
 };
 ;
 
@@ -119,7 +119,7 @@ const formatOneDayAgo = () => {
   const hours = String(oneDayAgo.getHours()).padStart(2, '0');
   const minutes = String(oneDayAgo.getMinutes()).padStart(2, '0');
 
-  return `${day}/${month} ${hours}:${minutes}`;
+  return `${day}/${month}, ${hours}:${minutes}`;
 };
 
 // New endpoint to place bet from collapsed modal (create new bet with matches)
