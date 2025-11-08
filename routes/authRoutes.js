@@ -702,27 +702,40 @@ router.put("/update-grand-audit-limit", async (req, res) => {
   try {
     const { userId, grandAuditLimit } = req.body;
 
-    if (!userId || grandAuditLimit === undefined || grandAuditLimit === null) {
-      return res.status(400).json({ message: "userId and grandAuditLimit are required" });
+    // Validate userId
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
     }
 
+    // Validate grandAuditLimit - check for undefined, null, or empty string
+    if (grandAuditLimit === undefined || grandAuditLimit === null || grandAuditLimit === "") {
+      return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
+    }
+
+    // Parse and validate the number
     const parsedLimit = Number(grandAuditLimit);
-    if (Number.isNaN(parsedLimit) || parsedLimit < 0) {
+    if (Number.isNaN(parsedLimit)) {
+      return res.status(400).json({ message: "grandAuditLimit must be a valid number" });
+    }
+
+    if (parsedLimit < 0) {
       return res.status(400).json({ message: "grandAuditLimit must be a non-negative number" });
     }
 
+    // Find user
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
+    // Update and save
     user.grandAuditLimit = parsedLimit;
     await user.save();
 
     return res.status(200).json({ message: "Grand audit limit updated", grandAuditLimit: user.grandAuditLimit });
   } catch (error) {
     console.error("Error updating grand audit limit:", error);
-    return res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
