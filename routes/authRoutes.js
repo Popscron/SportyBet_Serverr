@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const Otp = require("../models/otp");
@@ -707,6 +708,11 @@ router.put("/update-grand-audit-limit", async (req, res) => {
       return res.status(400).json({ message: "userId is required" });
     }
 
+    // Validate userId is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid userId format" });
+    }
+
     // Validate grandAuditLimit - check for undefined, null, or empty string
     if (grandAuditLimit === undefined || grandAuditLimit === null || grandAuditLimit === "") {
       return res.status(400).json({ message: "grandAuditLimit is required and cannot be empty" });
@@ -735,6 +741,10 @@ router.put("/update-grand-audit-limit", async (req, res) => {
     return res.status(200).json({ message: "Grand audit limit updated", grandAuditLimit: user.grandAuditLimit });
   } catch (error) {
     console.error("Error updating grand audit limit:", error);
+    // Handle validation errors specifically
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: "Validation error", error: error.message });
+    }
     return res.status(500).json({ message: "Server error", error: error.message });
   }
 });
