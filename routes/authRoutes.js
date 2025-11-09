@@ -132,7 +132,7 @@ router.post("/register", async (req, res) => {
       subscription,
       expiry,
       expiryPeriod: expiryValue,
-      role
+      role,
     });
 
     await newUser.save();
@@ -889,7 +889,7 @@ router.put("/reactivate-account", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // ✅ Save token in DB
+    // Save token in DB
     await User.findByIdAndUpdate(user._id, { token });
 
     res.json({
