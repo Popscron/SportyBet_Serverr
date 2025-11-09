@@ -30,6 +30,17 @@ router.post("/place", async (req, res) => {
   }
 
   try {
+    const userBalance = await UserBalance.findOne({ userId });
+    if (!userBalance || userBalance.amount < stake) {
+      return res.status(400).json({ 
+        message: "Insufficient balance",
+        balance: userBalance?.amount || 0 
+      });
+    }
+
+    // Deduct stake from balance
+    userBalance.amount -= stake;
+    await userBalance.save();
     let bet = await BetModel.findById(betId);
 
     if (!bet) {
