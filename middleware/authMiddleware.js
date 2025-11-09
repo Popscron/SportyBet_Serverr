@@ -13,11 +13,8 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
-    // ✅ Check if token exists in tokens array (new system) or matches single token (backward compatibility)
-    const tokens = user.tokens || [];
-    const isValidToken = tokens.includes(token) || user.token === token;
-
-    if (!isValidToken) {
+    // ✅ Check if token matches user's token
+    if (user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
