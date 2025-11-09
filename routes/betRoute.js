@@ -20,27 +20,8 @@ router.get("/bets", async (req, res) => {
 router.get("/bets/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const bets = await Bet.find({ userId }).lean(); // Use .lean() to get plain objects
-    
-    // Ensure all bets have valid date strings (don't mutate original documents)
-    const validBets = bets.map(bet => {
-      // Convert to plain object if needed and ensure date exists
-      const betObj = { ...bet };
-      
-      // If date is missing or invalid, set a default date
-      // Use space format (DD/MM HH:mm) to match frontend expectations in BetHistoryScreen
-      if (!betObj.date || typeof betObj.date !== 'string' || betObj.date.trim() === '') {
-        const now = new Date();
-        const day = String(now.getDate()).padStart(2, '0');
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        betObj.date = `${day}/${month} ${hours}:${minutes}`;
-      }
-      return betObj;
-    });
-    
-    res.json(validBets);
+    const bets = await Bet.find({ userId }); // Fetch bets for specific user
+    res.json(bets);
   } catch (error) {
     res.status(500).json({ error: "Error fetching bets" });
   }

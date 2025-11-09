@@ -225,26 +225,14 @@ router.get("/history/:userId", async (req, res) => {
                 description: w.description || 'Winning',
                 status: w.status || 'Completed'
             })),
-            ...bets.map(b => {
-                // Ensure date exists and is valid, otherwise set a default
-                let betDate = b.date;
-                if (!betDate || typeof betDate !== 'string' || betDate.trim() === '') {
-                    const now = new Date();
-                    const day = String(now.getDate()).padStart(2, '0');
-                    const month = String(now.getMonth() + 1).padStart(2, '0');
-                    const hours = String(now.getHours()).padStart(2, '0');
-                    const minutes = String(now.getMinutes()).padStart(2, '0');
-                    betDate = `${day}/${month} ${hours}:${minutes}`;
-                }
-                return {
-                    id: b._id.toString(),
-                    type: 'Bets - Real Sport',
-                    date: betDate,
-                    amount: b.stake * -1,
-                    description: b.description || 'Bet',
-                    status: b.status || 'Completed'
-                };
-            }),
+            ...bets.map(b => ({
+                id: b._id.toString(),
+                type: 'Bets - Real Sport',
+                date: b.date,
+                amount: b.stake * -1,
+                description: b.description || 'Bet',
+                status: b.status || 'Completed'
+            })),
         ];
 
         // Sort by date (most recent first)
@@ -266,46 +254,12 @@ router.get("/history/:userId", async (req, res) => {
 
 // Helper to parse DD/MM or DD/MM, HH:mm string dates to Date objects for sorting
 const parseStringDate = (dateStr) => {
-    // Handle undefined, null, or empty strings
-    if (!dateStr || typeof dateStr !== 'string' || dateStr.trim() === '') {
-        return new Date(0); // Return epoch date for invalid dates
-    }
-    
-    try {
-        // Handle both DD/MM and DD/MM, HH:mm formats
-        // First try splitting by comma (for DD/MM, HH:mm format)
-        let datePart;
-        if (dateStr.includes(', ')) {
-            datePart = dateStr.split(', ')[0];
-        } else if (dateStr.includes(' ')) {
-            // Handle space-separated format (DD/MM HH:mm)
-            datePart = dateStr.split(' ')[0];
-        } else {
-            // Just DD/MM format
-            datePart = dateStr;
-        }
-        
-        // Validate datePart exists and has the expected format
-        if (!datePart || !datePart.includes('/')) {
-            return new Date(0);
-        }
-        
-        const dateParts = datePart.split('/');
-        if (!dateParts || dateParts.length < 2) {
-            return new Date(0);
-        }
-        
-        const [day, month] = dateParts.map(Number);
-        if (isNaN(day) || isNaN(month)) {
-            return new Date(0);
-        }
-        
-        const year = new Date().getFullYear(); // Assume current year
-        return new Date(year, month - 1, day);
-    } catch (error) {
-        console.error('Error parsing date string:', dateStr, error);
-        return new Date(0);
-    }
+    if (typeof dateStr !== 'string') return new Date(dateStr);
+    // Handle both DD/MM and DD/MM, HH:mm
+    const datePart = dateStr.split(', ')[0]; // Get DD/MM part
+    const [day, month] = datePart.split('/').map(Number);
+    const year = new Date().getFullYear(); // Assume current year
+    return new Date(year, month - 1, day);
 };
 
 // 📟 GET /api/wallet/balance/:userId
