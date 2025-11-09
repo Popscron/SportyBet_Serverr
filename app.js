@@ -34,11 +34,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use(
   cors({
-    origin: [
-      "https://admingh.online",
-      "https://www.admingh.online",
-      "http://localhost:5173",
-    ],
+    origin: true, // Allow all origins for local development
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -134,8 +130,9 @@ mongoose
   });
 
 const PORT = process.env.PORT || 5002;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Accessible at: http://localhost:${PORT} or http://172.20.10.2:${PORT}`);
 });
 
 // updated
