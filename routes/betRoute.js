@@ -153,8 +153,8 @@ router.put("/ticketId/:betId", async (req, res) => {
 
     // Handle date update
     if (date !== undefined) {
-      if (typeof date !== "string" || !/^\d{2}\/\d{2} \d{2}:\d{2}$/.test(date)) {
-        return res.status(400).json({ error: "Invalid date format. Expected DD/MM HH:mm" });
+      if (typeof date !== "string" || !/^\d{2}\/\d{2}, \d{2}:\d{2}$/.test(date)) {
+        return res.status(400).json({ error: "Invalid date format. Expected DD/MM, HH:mm" });
       }
       updateFields.date = date;
     }
