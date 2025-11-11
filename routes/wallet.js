@@ -347,29 +347,17 @@ router.delete("/transactions/user/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
-    // Delete from all relevant collections
     const depositResult = await Deposit.deleteMany({ userId });
     const withdrawResult = await Withdraw.deleteMany({ userId });
-    const winningResult = await Winning.deleteMany({ userId });
-    const betResult = await Bet.deleteMany({ userId });
 
-    const totalDeleted =
-      depositResult.deletedCount +
-      withdrawResult.deletedCount +
-      winningResult.deletedCount +
-      betResult.deletedCount;
+    const totalDeleted = depositResult.deletedCount + withdrawResult.deletedCount;
 
     res.status(200).json({
       message: `Deleted ${totalDeleted} transaction(s) for user ${userId}`,
-      deletedCounts: {
-        deposits: depositResult.deletedCount,
-        withdrawals: withdrawResult.deletedCount,
-        winnings: winningResult.deletedCount,
-        bets: betResult.deletedCount,
-      },
+      depositsDeleted: depositResult.deletedCount,
+      withdrawalsDeleted: withdrawResult.deletedCount,
     });
   } catch (error) {
-    console.error("Error deleting all user transactions:", error);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
