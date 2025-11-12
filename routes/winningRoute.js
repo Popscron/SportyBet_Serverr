@@ -2,6 +2,33 @@ const express = require("express");
 const router = express.Router();
 const Winning = require("../models/winningModel");
 const UserBalance = require("../models/UserBalance");
+const TransactionHistory = require("../models/TransactionHistory");
+
+const recordWinningHistory = async ({ userId, winning, currencyType }) => {
+  if (!winning?._id || !userId) {
+    return;
+  }
+
+  try {
+    await TransactionHistory.findOneAndUpdate(
+      { sourceCollection: "Winning", sourceId: winning._id },
+      {
+        userId,
+        type: "Winnings",
+        amount: winning.amount,
+        currencyType,
+        status: winning.status || "Completed",
+        description: "Winning",
+        displayDate: winning.date,
+        eventDate: winning.date,
+        metadata: { currencyType },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    console.error("Failed to record winning history entry:", error);
+  }
+};
 
 // Helper function to clean and validate amount
 const getCleanedAmount = (val) => {
@@ -39,7 +66,7 @@ router.post("/winning", async (req, res) => {
     // }
 
     // 1. Save winning history
-    await Winning.create({
+    const winning = await Winning.create({
       userId,
       amount: cleanedAmount,
       currencyType,
@@ -52,6 +79,8 @@ router.post("/winning", async (req, res) => {
       { $inc: { amount: cleanedAmount }, $set: { currencyType } },
       { new: true, upsert: true }
     );
+
+    await recordWinningHistory({ userId, winning, currencyType });
 
     res.status(200).json({ message: "Winning added successfully", balance });
   } catch (error) {

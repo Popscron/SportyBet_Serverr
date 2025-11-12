@@ -8,6 +8,209 @@ const Bet = require("../models/bet");
 const Winning = require("../models/winningModel");
 const User = require("../models/user");
 const NotificationBalance = require("../models/NotificationBalance");
+const TransactionHistory = require("../models/TransactionHistory");
+
+const TYPE_LABELS = {
+  Deposit: "Deposits",
+  Withdraw: "Withdrawals",
+  Winning: "Winnings",
+  Bet: "Bets - Real Sport",
+};
+
+const CATEGORY_TO_TYPES = {
+  "All Categories": null,
+  deposits: [TYPE_LABELS.Deposit],
+  withdrawals: [TYPE_LABELS.Withdraw],
+  winnings: [TYPE_LABELS.Winning],
+  bets: [TYPE_LABELS.Bet],
+};
+
+const upsertTransactionHistory = async ({
+  userId,
+  sourceId,
+  sourceCollection,
+  type,
+  amount,
+  currencyType,
+  status,
+  description,
+  displayDate,
+  eventDate,
+  metadata,
+}) => {
+  if (!userId || !sourceId || !sourceCollection || !type || amount === undefined) {
+    return;
+  }
+
+  try {
+    await TransactionHistory.findOneAndUpdate(
+      { sourceCollection, sourceId },
+      {
+        userId,
+        type,
+        amount,
+        currencyType,
+        status,
+        description,
+        displayDate: displayDate ?? eventDate ?? new Date(),
+        eventDate: eventDate ?? new Date(),
+        metadata: metadata || {},
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      }
+    );
+  } catch (error) {
+    console.error("Failed to record transaction history entry:", error);
+  }
+};
+
+const syncHistoryForCollection = async ({
+  docs,
+  sourceCollection,
+  typeLabel,
+  buildEntry,
+}) => {
+  if (!Array.isArray(docs) || docs.length === 0) {
+    return;
+  }
+
+  const sourceIds = docs.map((doc) => doc._id);
+  const existingEntries = await TransactionHistory.find({
+    sourceCollection,
+    sourceId: { $in: sourceIds },
+  }).select("sourceId");
+
+  const existingSet = new Set(
+    existingEntries.map((entry) => entry.sourceId.toString())
+  );
+
+  const recordsToInsert = [];
+
+  docs.forEach((doc) => {
+    if (existingSet.has(doc._id.toString())) {
+      return;
+    }
+
+    const entryPayload = buildEntry(doc);
+    if (!entryPayload) {
+      return;
+    }
+
+    recordsToInsert.push({
+      sourceCollection,
+      sourceId: doc._id,
+      type: typeLabel,
+      ...entryPayload,
+    });
+  });
+
+  if (recordsToInsert.length > 0) {
+    await TransactionHistory.insertMany(recordsToInsert);
+  }
+};
+
+const ensureTransactionHistory = async ({ userId, startDate, endDate }) => {
+  const dateFilter =
+    startDate && endDate ? { $gte: startDate, $lte: endDate } : undefined;
+
+  const buildMetadata = (doc, extra = {}) => ({
+    currencyType: doc.currencyType,
+    status: doc.status,
+    ...extra,
+  });
+
+  const depositQuery = { userId };
+  if (dateFilter) {
+    depositQuery.date = dateFilter;
+  }
+  const deposits = await Deposit.find(depositQuery).lean();
+  await syncHistoryForCollection({
+    docs: deposits,
+    sourceCollection: "Deposit",
+    typeLabel: TYPE_LABELS.Deposit,
+    buildEntry: (doc) => ({
+      userId: doc.userId,
+      amount: doc.amount,
+      currencyType: doc.currencyType,
+      status: doc.status || "Completed",
+      description: "Deposit",
+      displayDate: doc.date,
+      eventDate: doc.date,
+      metadata: buildMetadata(doc),
+    }),
+  });
+
+  const withdrawQuery = { userId };
+  if (dateFilter) {
+    withdrawQuery.date = dateFilter;
+  }
+  const withdrawals = await Withdraw.find(withdrawQuery).lean();
+  await syncHistoryForCollection({
+    docs: withdrawals,
+    sourceCollection: "Withdraw",
+    typeLabel: TYPE_LABELS.Withdraw,
+    buildEntry: (doc) => ({
+      userId: doc.userId,
+      amount: doc.amount * -1,
+      currencyType: doc.currencyType,
+      status: doc.status || "Completed",
+      description: doc.method ? `Withdrawal (${doc.method})` : "Withdrawal",
+      displayDate: doc.date,
+      eventDate: doc.date,
+      metadata: buildMetadata(doc, { method: doc.method }),
+    }),
+  });
+
+  const winningQuery = { userId };
+  if (dateFilter) {
+    winningQuery.date = dateFilter;
+  }
+  const winnings = await Winning.find(winningQuery).lean();
+  await syncHistoryForCollection({
+    docs: winnings,
+    sourceCollection: "Winning",
+    typeLabel: TYPE_LABELS.Winning,
+    buildEntry: (doc) => ({
+      userId: doc.userId,
+      amount: doc.amount,
+      currencyType: doc.currencyType,
+      status: doc.status || "Completed",
+      description: "Winning",
+      displayDate: doc.date,
+      eventDate: doc.date,
+      metadata: buildMetadata(doc),
+    }),
+  });
+
+  const betQuery = { userId };
+  if (dateFilter) {
+    betQuery.timestamp = dateFilter;
+  }
+  const bets = await Bet.find(betQuery).lean();
+  await syncHistoryForCollection({
+    docs: bets,
+    sourceCollection: "Bet",
+    typeLabel: TYPE_LABELS.Bet,
+    buildEntry: (doc) => ({
+      userId: doc.userId,
+      amount: doc.stake * -1,
+      currencyType: doc.currencyType,
+      status: doc.status || "Completed",
+      description: "Bet",
+      displayDate: doc.date,
+      eventDate: doc.timestamp || new Date(),
+      metadata: {
+        betCode: doc.betCode,
+        odd: doc.odd,
+        stake: doc.stake,
+        bookingCode: doc.bookingCode,
+      },
+    }),
+  });
+};
 
 // Twilio setup (Make sure your .env file contains these variables)
 // // Or your approved Vonage number or sender ID
@@ -21,7 +224,7 @@ router.post("/deposit", async (req, res) => {
   }
 
   try {
-    await Deposit.create({ userId, amount, currencyType });
+    const deposit = await Deposit.create({ userId, amount, currencyType });
 
     const balance = await UserBalance.findOneAndUpdate(
       { userId },
@@ -47,6 +250,20 @@ router.post("/deposit", async (req, res) => {
   
 //       balanceDoc.currentBalance -= numericAmount;
 //       await balanceDoc.save();
+    await upsertTransactionHistory({
+      userId,
+      sourceId: deposit._id,
+      sourceCollection: "Deposit",
+      type: TYPE_LABELS.Deposit,
+      amount,
+      currencyType,
+      status: deposit.status || "Completed",
+      description: "Deposit",
+      displayDate: deposit.date,
+      eventDate: deposit.date,
+      metadata: { currencyType },
+    });
+
     res.status(200).json({ message: "Deposit successful", balance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -69,7 +286,7 @@ router.post("/withdraw", async (req, res) => {
     }
 
     // Record withdrawal
-    await Withdraw.create({ userId, amount, method, currencyType });
+    const withdrawal = await Withdraw.create({ userId, amount, method, currencyType });
 
     // Update user balances
     userBalance.amount -= amount;
@@ -93,6 +310,20 @@ router.post("/withdraw", async (req, res) => {
   //   balanceDoc.currentBalance += numericAmount;
   //     await balanceDoc.save();
     const user = await User.findById(userId);
+
+    await upsertTransactionHistory({
+      userId,
+      sourceId: withdrawal._id,
+      sourceCollection: "Withdraw",
+      type: TYPE_LABELS.Withdraw,
+      amount: amount * -1,
+      currencyType,
+      status: withdrawal.status || "Completed",
+      description: `Withdrawal (${method})`,
+      displayDate: withdrawal.date,
+      eventDate: withdrawal.date,
+      metadata: { method, currencyType },
+    });
 
     res.status(200).json({ message: "Withdrawal successful", balance: userBalance });
   } catch (error) {
@@ -122,7 +353,6 @@ router.get("/history/:userId", async (req, res) => {
 
     console.log('Received Request:', { userId, dateRange, category });
 
-    let filter = { userId: userId };
     let startDate, endDate;
 
     // 1. Handle Date Range Filtering
@@ -146,102 +376,35 @@ router.get("/history/:userId", async (req, res) => {
                 return res.status(400).json({ message: "Invalid dateRange format for relative dates." });
             }
         }
-        if (startDate && endDate) {
-            filter.date = { $gte: startDate, $lte: endDate };
-        }
     } else {
         endDate = moment().endOf('day').toDate();
         startDate = moment().subtract(6, 'days').startOf('day').toDate();
-        filter.date = { $gte: startDate, $lte: endDate };
     }
 
-    console.log('MongoDB Filter:', filter);
-
     try {
-        let deposits = [];
-        let withdrawals = [];
-        let bets = [];
-        let winnings = [];
+        await ensureTransactionHistory({ userId, startDate, endDate });
 
-        // 2. Handle Category Filtering
-        if (!category || category === 'All Categories' || category === 'deposits') {
-            deposits = await Deposit.find(filter).lean();
-            console.log(`Deposits found: ${deposits.length}`);
-            if (deposits.length > 0) console.log('Sample Deposit:', deposits[0]);
-        }
-        if (!category || category === 'All Categories' || category === 'withdrawals') {
-            withdrawals = await Withdraw.find(filter).lean();
-            console.log(`Withdrawals found: ${withdrawals.length}`);
-            if (withdrawals.length > 0) console.log('Sample Withdrawal:', withdrawals[0]);
-        }
-        if (!category || category === 'All Categories' || category === 'winnings') {
-            winnings = await Winning.find(filter).lean();
-            console.log(`Winnings found: ${winnings.length}`);
-            if (winnings.length > 0) console.log('Sample Winning:', winnings[0]);
-        }
-        if (!category || category === 'All Categories' || category === 'bets') {
-            // Adjust filter for Bet collection (string-based date in DD/MM or DD/MM, HH:mm)
-            const betFilter = { ...filter };
-            if (filter.date) {
-                // Extract date part only, ignoring time
-                betFilter.date = {
-                    $gte: moment(filter.date.$gte).format('DD/MM'),
-                    $lte: moment(filter.date.$lte).format('DD/MM')
-                };
-                // Use regex to match DD/MM or DD/MM, HH:mm
-                betFilter.date = {
-                    $regex: `^(${moment(filter.date.$gte).format('DD/MM')}|${moment(filter.date.$lte).format('DD/MM')}|\\d{2}/\\d{2}(, \\d{2}:\\d{2})?$)`,
-                    $options: 'i'
-                };
-            }
-            bets = await Bet.find(betFilter).lean();
-            console.log(`Bets found: ${bets.length}`);
-            if (bets.length > 0) console.log('Sample Bet:', bets[0]);
+        const historyFilter = { userId };
+        if (startDate && endDate) {
+            historyFilter.eventDate = { $gte: startDate, $lte: endDate };
         }
 
-        // 3. Combine and Map to a consistent format
-        const combinedHistory = [
-            ...deposits.map(d => ({
-                id: d._id.toString(),
-                type: 'Deposits',
-                date: d.date,
-                amount: d.amount,
-                description: d.description || 'Deposit',
-                status: d.status || 'Completed'
-            })),
-            ...withdrawals.map(w => ({
-                id: w._id.toString(),
-                type: 'Withdrawals',
-                date: w.date,
-                amount: w.amount * -1,
-                description: w.description || 'Withdrawal',
-                status: w.status || 'Completed'
-            })),
-            ...winnings.map(w => ({
-                id: w._id.toString(),
-                type: 'Winnings',
-                date: w.date,
-                amount: w.amount,
-                description: w.description || 'Winning',
-                status: w.status || 'Completed'
-            })),
-            ...bets.map(b => ({
-                id: b._id.toString(),
-                type: 'Bets - Real Sport',
-                date: b.date,
-                amount: b.stake * -1,
-                description: b.description || 'Bet',
-                status: b.status || 'Completed'
-            })),
-        ];
+        if (category && CATEGORY_TO_TYPES[category]) {
+            historyFilter.type = { $in: CATEGORY_TO_TYPES[category] };
+        }
 
-        // Sort by date (most recent first)
-        combinedHistory.sort((a, b) => {
-            // Handle string dates for bets (DD/MM or DD/MM, HH:mm)
-            const dateA = typeof a.date === 'string' ? parseStringDate(a.date) : new Date(a.date);
-            const dateB = typeof b.date === 'string' ? parseStringDate(b.date) : new Date(b.date);
-            return dateB - dateA;
-        });
+        const historyEntries = await TransactionHistory.find(historyFilter)
+            .sort({ eventDate: -1, createdAt: -1 })
+            .lean();
+
+        const combinedHistory = historyEntries.map((entry) => ({
+            id: entry._id.toString(),
+            type: entry.type,
+            date: entry.displayDate || entry.eventDate,
+            amount: entry.amount,
+            description: entry.description || entry.type,
+            status: entry.status || "Completed",
+        }));
 
         console.log('Combined History:', combinedHistory);
 
@@ -251,16 +414,6 @@ router.get("/history/:userId", async (req, res) => {
         res.status(500).json({ message: "Server error", error: error.message });
     }
 });
-
-// Helper to parse DD/MM or DD/MM, HH:mm string dates to Date objects for sorting
-const parseStringDate = (dateStr) => {
-    if (typeof dateStr !== 'string') return new Date(dateStr);
-    // Handle both DD/MM and DD/MM, HH:mm
-    const datePart = dateStr.split(', ')[0]; // Get DD/MM part
-    const [day, month] = datePart.split('/').map(Number);
-    const year = new Date().getFullYear(); // Assume current year
-    return new Date(year, month - 1, day);
-};
 
 // 📟 GET /api/wallet/balance/:userId
 router.get("/deposite/:userId", async (req, res) => {
@@ -305,36 +458,18 @@ router.delete("/transaction/:transactionId", async (req, res) => {
   const { transactionId } = req.params;
 
   try {
-    let deletedCount = 0;
+    const deletionResult = await TransactionHistory.deleteOne({
+      _id: transactionId,
+    });
 
-    // Try to delete from Deposit collection
-    const depositResult = await Deposit.deleteOne({ _id: transactionId });
-    if (depositResult.deletedCount > 0) {
-      deletedCount++;
-    }
-
-    // Try to delete from Withdraw collection
-    const withdrawResult = await Withdraw.deleteOne({ _id: transactionId });
-    if (withdrawResult.deletedCount > 0) {
-      deletedCount++;
-    }
-
-    // Try to delete from Winning collection
-    const winningResult = await Winning.deleteOne({ _id: transactionId });
-    if (winningResult.deletedCount > 0) {
-      deletedCount++;
-    }
-
-    // Try to delete from Bet collection
-    const betResult = await Bet.deleteOne({ _id: transactionId });
-    if (betResult.deletedCount > 0) {
-      deletedCount++;
-    }
-
-    if (deletedCount > 0) {
-      return res.status(200).json({ message: "Transaction deleted successfully across collections.", deletedCount });
+    if (deletionResult.deletedCount > 0) {
+      return res
+        .status(200)
+        .json({ message: "Transaction removed from history." });
     } else {
-      return res.status(404).json({ message: "Transaction not found in any collection." });
+      return res
+        .status(404)
+        .json({ message: "Transaction history entry not found." });
     }
   } catch (error) {
     console.error("Error deleting transaction:", error);
@@ -347,19 +482,16 @@ router.delete("/transactions/user/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const depositResult = await Deposit.deleteMany({ userId });
-    const withdrawResult = await Withdraw.deleteMany({ userId });
-
-    const totalDeleted = depositResult.deletedCount + withdrawResult.deletedCount;
+    const result = await TransactionHistory.deleteMany({ userId });
 
     res.status(200).json({
-      message: `Deleted ${totalDeleted} transaction(s) for user ${userId}`,
-      depositsDeleted: depositResult.deletedCount,
-      withdrawalsDeleted: withdrawResult.deletedCount,
+      message: `Deleted ${result.deletedCount} history record(s) for user ${userId}`,
+      deleted: result.deletedCount,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 
 module.exports = router;

@@ -5,6 +5,38 @@ const Deposit =  require("../models/UserBalance")
 const Match = require("../models/multibets")
 const mongoose = require("mongoose");
 const VerifyCode = require("../models/verifycode");
+const TransactionHistory = require("../models/TransactionHistory");
+
+const recordBetHistory = async (betDoc) => {
+  if (!betDoc?._id || !betDoc.userId) {
+    return;
+  }
+
+  try {
+    await TransactionHistory.findOneAndUpdate(
+      { sourceCollection: "Bet", sourceId: betDoc._id },
+      {
+        userId: betDoc.userId,
+        type: "Bets - Real Sport",
+        amount: betDoc.stake * -1,
+        currencyType: betDoc.currencyType,
+        status: betDoc.status || "Completed",
+        description: "Bet",
+        displayDate: betDoc.date,
+        eventDate: betDoc.timestamp || new Date(),
+        metadata: {
+          betCode: betDoc.betCode,
+          odd: betDoc.odd,
+          stake: betDoc.stake,
+          bookingCode: betDoc.bookingCode,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    console.error("Failed to record bet history entry:", error);
+  }
+};
 // Fetch Bets for Logged-in User
 
 router.get("/bets", async (req, res) => {
@@ -65,6 +97,8 @@ router.post("/bets", async (req, res) => {
     const newBet = new Bet({ userId, date, betCode, stake, odd, bookingCode });
     const savedBet = await newBet.save();
 
+    await recordBetHistory(savedBet);
+
     res.status(201).json(savedBet);
   } catch (error) {
     console.error("Error adding bet:", error.message);
@@ -87,6 +121,8 @@ router.post("/bets1", async (req, res) => {
 
     const newBet = new Bet({ userId, date, betCode, stake, odd, bookingCode });
     const savedBet = await newBet.save();
+
+    await recordBetHistory(savedBet);
 
     res.status(201).json(savedBet);
   } catch (error) {
@@ -118,6 +154,8 @@ router.put("/bets/:betId", async (req, res) => {
     }
 
     await VerifyCode.deleteOne({ betId });
+
+    await recordBetHistory(updatedBet);
 
     res.json(updatedBet);
   } catch (error) {
@@ -200,6 +238,8 @@ router.put("/ticketId/:betId", async (req, res) => {
       { new: true }
     );
 
+    await recordBetHistory(updatedBet);
+
     res.json(updatedBet);
   } catch (error) {
     console.error("Error updating bet:", error.message);
@@ -227,6 +267,8 @@ router.put("/bookingcode/:betId", async (req, res) => {
       return res.status(404).json({ error: "Bet not found" });
     }
     await VerifyCode.deleteOne({ betId });
+
+    await recordBetHistory(updatedBet);
 
     res.json(updatedBet);
   } catch (error) {
@@ -258,6 +300,10 @@ router.delete("/bets/:betId", async (req, res) => {
     // Delete the bet
     await Bet.findByIdAndDelete(betId);
     await VerifyCode.deleteOne({ betId });
+    await TransactionHistory.deleteOne({
+      sourceCollection: "Bet",
+      sourceId: betId,
+    });
 
     res.json({ message: "Bet and related matches deleted successfully" });
   } catch (error) {
@@ -284,6 +330,10 @@ router.delete("/aLLbets/:userId", async (req, res) => {
 
     // Delete all bets of the user
     await Bet.deleteMany({ userId });
+    await TransactionHistory.deleteMany({
+      sourceCollection: "Bet",
+      userId,
+    });
 
     res.json({ message: `All bets and related matches for user ${userId} deleted successfully.` });
   } catch (error) {
