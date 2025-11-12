@@ -46,6 +46,14 @@ const transactionHistorySchema = new mongoose.Schema(
     metadata: {
       type: mongoose.Schema.Types.Mixed,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
