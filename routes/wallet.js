@@ -43,6 +43,15 @@ const upsertTransactionHistory = async ({
   }
 
   try {
+    const existingEntry = await TransactionHistory.findOne({
+      sourceCollection,
+      sourceId,
+    }).select("isDeleted");
+
+    if (existingEntry && existingEntry.isDeleted) {
+      return existingEntry;
+    }
+
     await TransactionHistory.findOneAndUpdate(
       { sourceCollection, sourceId },
       {
@@ -55,6 +64,8 @@ const upsertTransactionHistory = async ({
         displayDate: displayDate ?? eventDate ?? new Date(),
         eventDate: eventDate ?? new Date(),
         metadata: metadata || {},
+        isDeleted: false,
+        deletedAt: null,
       },
       {
         upsert: true,
@@ -81,16 +92,20 @@ const syncHistoryForCollection = async ({
   const existingEntries = await TransactionHistory.find({
     sourceCollection,
     sourceId: { $in: sourceIds },
-  }).select("sourceId");
+  }).select("sourceId isDeleted");
 
-  const existingSet = new Set(
-    existingEntries.map((entry) => entry.sourceId.toString())
+  const deletedSet = new Set(
+    existingEntries
+      .filter((entry) => entry.isDeleted)
+      .map((entry) => entry.sourceId?.toString())
+      .filter(Boolean)
   );
 
-  const recordsToInsert = [];
+  const operations = [];
 
   docs.forEach((doc) => {
-    if (existingSet.has(doc._id.toString())) {
+    const idString = doc._id?.toString();
+    if (!idString || deletedSet.has(idString)) {
       return;
     }
 
@@ -99,16 +114,24 @@ const syncHistoryForCollection = async ({
       return;
     }
 
-    recordsToInsert.push({
-      sourceCollection,
-      sourceId: doc._id,
-      type: typeLabel,
-      ...entryPayload,
+    operations.push({
+      updateOne: {
+        filter: { sourceCollection, sourceId: doc._id },
+        update: {
+          $set: {
+            ...entryPayload,
+            type: typeLabel,
+            isDeleted: false,
+            deletedAt: null,
+          },
+        },
+        upsert: true,
+      },
     });
   });
 
-  if (recordsToInsert.length > 0) {
-    await TransactionHistory.insertMany(recordsToInsert);
+  if (operations.length > 0) {
+    await TransactionHistory.bulkWrite(operations, { ordered: false });
   }
 };
 
@@ -385,6 +408,7 @@ router.get("/history/:userId", async (req, res) => {
         await ensureTransactionHistory({ userId, startDate, endDate });
 
         const historyFilter = { userId };
+        historyFilter.isDeleted = { $ne: true };
         if (startDate && endDate) {
             historyFilter.eventDate = { $gte: startDate, $lte: endDate };
         }
@@ -458,11 +482,13 @@ router.delete("/transaction/:transactionId", async (req, res) => {
   const { transactionId } = req.params;
 
   try {
-    const deletionResult = await TransactionHistory.deleteOne({
-      _id: transactionId,
-    });
+    const transaction = await TransactionHistory.findByIdAndUpdate(
+      transactionId,
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true }
+    );
 
-    if (deletionResult.deletedCount > 0) {
+    if (transaction) {
       return res
         .status(200)
         .json({ message: "Transaction removed from history." });
@@ -482,11 +508,14 @@ router.delete("/transactions/user/:userId", async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const result = await TransactionHistory.deleteMany({ userId });
+    const result = await TransactionHistory.updateMany(
+      { userId, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: new Date() } }
+    );
 
     res.status(200).json({
-      message: `Deleted ${result.deletedCount} history record(s) for user ${userId}`,
-      deleted: result.deletedCount,
+      message: `Deleted ${result.modifiedCount} history record(s) for user ${userId}`,
+      deleted: result.modifiedCount,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
