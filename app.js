@@ -23,6 +23,7 @@ const userImgRoutes = require("./routes/UserImageRoute.js");
 const BookingRoutes = require("./routes/BookingRoute.js");
 const notification = require("./routes/notification.js");
 const manualCardRoutes = require("./routes/manualCardRoute.js");
+const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
@@ -69,6 +70,7 @@ app.use("/api", userImgRoutes);
 app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
+app.use("/api", spinBottleRoutes);
 
 const pushTokens = {};
 
