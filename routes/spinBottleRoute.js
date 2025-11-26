@@ -7,16 +7,11 @@ const generateRoundId = () => {
   return `SPIN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Generate result: 45% up, 45% down, 10% middle
+// Generate result: only "up" or "down"
 const generateResult = () => {
   const random = Math.random();
-  if (random < 0.45) {
-    return "up";
-  } else if (random < 0.9) {
-    return "down";
-  } else {
-    return "middle";
-  }
+  // 50% chance for each; adjust weights here if you want a bias
+  return random < 0.5 ? "up" : "down";
 };
 
 // GET /api/spin-bottle/result - Get the upcoming result
