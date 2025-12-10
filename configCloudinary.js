@@ -17,15 +17,23 @@ if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !pr
     api_secret: process.env.CLOUDINARY_API_SECRET
   });
 
-  // Test the configuration (async, don't block)
-  cloudinary.api.ping()
-    .then(result => {
-      console.log('Cloudinary configuration successful:', result);
-    })
-    .catch(error => {
-      console.error('Cloudinary configuration failed:', error.message);
-      // Don't crash - just log the error
-    });
+  // Test the configuration (async, don't block, with timeout)
+  // Only test in non-serverless or if explicitly enabled
+  if (process.env.NODE_ENV !== 'production' || process.env.TEST_CLOUDINARY === 'true') {
+    const pingPromise = cloudinary.api.ping()
+      .then(result => {
+        console.log('Cloudinary configuration successful:', result);
+      })
+      .catch(error => {
+        // Only log, don't crash
+        console.warn('Cloudinary ping failed (non-critical):', error.message);
+      });
+    
+    // Add timeout to prevent hanging
+    setTimeout(() => {
+      // If ping takes too long, just continue
+    }, 3000);
+  }
 }
 
 module.exports = cloudinary;

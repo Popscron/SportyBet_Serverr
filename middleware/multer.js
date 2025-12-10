@@ -5,10 +5,11 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
+// Use environment variables if available, otherwise use fallback (for local dev)
 cloudinary.config({
-  cloud_name:"dcwc3ehp3",
-  api_key: "283419252513685",
-  api_secret: "gGz5YtguIm-W42mabvpOsSSF_7c",
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "dcwc3ehp3",
+  api_key: process.env.CLOUDINARY_API_KEY || "283419252513685",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "gGz5YtguIm-W42mabvpOsSSF_7c",
 });
 
 const storage = new CloudinaryStorage({
