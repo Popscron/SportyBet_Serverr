@@ -151,8 +151,8 @@ router.post(
         if (!existing) isUnique = true;
       }
 
-      // Payment expiration (30 minutes from now)
-      const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      // Payment expiration (10 minutes from now)
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       // Mobile Money phone number (configure this in .env or database)
       const phoneNumber = process.env.MOBILE_MONEY_PHONE || '0244123456';
@@ -427,6 +427,18 @@ router.get('/status/:reference', protect, async (req, res) => {
       });
     }
 
+    // Calculate time remaining in seconds
+    const now = new Date();
+    const expiresAt = new Date(pendingPayment.expiresAt);
+    const timeRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+    const isExpired = timeRemaining === 0;
+
+    // Auto-expire if expired
+    if (isExpired && pendingPayment.status === 'pending') {
+      pendingPayment.status = 'expired';
+      await pendingPayment.save();
+    }
+
     res.json({
       success: true,
       data: {
@@ -438,7 +450,11 @@ router.get('/status/:reference', protect, async (req, res) => {
           reference: pendingPayment.reference,
           status: pendingPayment.status,
           expiresAt: pendingPayment.expiresAt,
+          timeRemaining, // Time remaining in seconds
+          isExpired,
           detectedAt: pendingPayment.detectedAt,
+          transactionId: pendingPayment.transactionId,
+          manualTransactionId: pendingPayment.manualTransactionId,
         },
       },
     });
@@ -450,6 +466,83 @@ router.get('/status/:reference', protect, async (req, res) => {
     });
   }
 });
+
+// @route   POST /api/1win/payments/verify-transaction
+// @desc    Verify transaction ID manually
+// @access  Private
+router.post(
+  '/verify-transaction',
+  protect,
+  [
+    body('reference').notEmpty().withMessage('Reference is required'),
+    body('transactionId').notEmpty().withMessage('Transaction ID is required'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+      }
+
+      const { reference, transactionId } = req.body;
+      const userId = req.user._id;
+
+      // Find the pending payment
+      const pendingPayment = await PendingPayment.findOne({
+        reference,
+        userId,
+      });
+
+      if (!pendingPayment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Payment not found',
+        });
+      }
+
+      // Check if payment is already completed
+      if (pendingPayment.status === 'completed') {
+        return res.json({
+          success: true,
+          message: 'Payment already verified',
+          data: {
+            payment: pendingPayment,
+          },
+        });
+      }
+
+      // Save manual transaction ID
+      pendingPayment.manualTransactionId = transactionId.trim();
+      await pendingPayment.save();
+
+      // Try to find matching transaction in SMS logs or database
+      // For now, we'll just save it and let admin verify manually
+      // In a real system, you might search through SMS logs or payment records
+
+      res.json({
+        success: true,
+        message: 'Transaction ID submitted. Our team will verify it shortly.',
+        data: {
+          payment: {
+            id: pendingPayment._id,
+            reference: pendingPayment.reference,
+            transactionId: pendingPayment.manualTransactionId,
+            status: pendingPayment.status,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Verify transaction error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  }
+);
 
 // @route   GET /api/1win/payments/my-payments
 // @desc    Get user's payment history
