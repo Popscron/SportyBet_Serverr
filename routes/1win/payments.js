@@ -465,6 +465,7 @@ router.get('/status/:reference', protect, async (req, res) => {
           amount: pendingPayment.amount,
           currency: pendingPayment.currency,
           reference: pendingPayment.reference,
+          phoneNumber: pendingPayment.phoneNumber,
           status: pendingPayment.status,
           expiresAt: pendingPayment.expiresAt,
           timeRemaining, // Time remaining in seconds
