@@ -18,20 +18,20 @@ const generateReference = () => {
   return reference;
 };
 
-// Helper function to parse Mobile Money SMS (supports AirtelTigo and MTN)
+// Helper function to parse Mobile Money SMS (supports MTN)
 const parseMobileMoneySMS = (message) => {
   try {
     // MTN SMS format example:
     // "Payment received for GHS 100.00 from ENOCK WORNAME Current Balance: GHS 1067.59 . Available Balance: GHS 1067.59. Reference: Q. Transaction ID: 70514217857. TRANSACTION FEE: 0.00"
     
-    // AirtelTigo SMS format examples:
+    // MTN SMS format examples:
     // SENT: "Dear Customer, you have sent GHS 550.00 to PHILIP FIIFI HANSON ,mobile money wallet +233539769182..."
     // RECEIVED: "Dear Customer, you have received GHS 29.99 from 0244123456. Trans ID: GM251127.0930.C09997..."
     
     // Detect provider
     // MTN payment SMS starts with "Payment received for GHS"
     const isMTN = /Payment received/i.test(message) || /MTN/i.test(message);
-    const isAirtelTigo = /AirtelTigo|Dear Customer/i.test(message);
+    const isMTNFormat = /MTN|Dear Customer/i.test(message);
     
     // Extract amount (GHS X.XX format) - works for both
     const amountMatch = message.match(/GHS\s*([\d,]+\.?\d{2})/i) || 
@@ -65,8 +65,8 @@ const parseMobileMoneySMS = (message) => {
       // MTN doesn't always include phone number in received messages
       // We'll match by amount only
       
-    } else if (isAirtelTigo) {
-      // AirtelTigo Format
+    } else if (isMTNFormat) {
+      // MTN Format
       isReceived = /received/i.test(message);
       isSent = /sent/i.test(message);
       
@@ -86,7 +86,7 @@ const parseMobileMoneySMS = (message) => {
         recipientPhone = recipientMatch ? recipientMatch[1].replace(/^\+233/, '0') : null;
       }
       
-      reference = transactionId; // Use transaction ID as reference for AirtelTigo
+      reference = transactionId; // Use transaction ID as reference for MTN
     }
     
     const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
@@ -100,7 +100,7 @@ const parseMobileMoneySMS = (message) => {
       reference: reference || transactionId,
       isReceived,
       isSent,
-      provider: isMTN ? 'MTN' : isAirtelTigo ? 'AirtelTigo' : 'Unknown',
+      provider: isMTN ? 'MTN' : isMTNFormat ? 'MTN' : 'Unknown',
       // Valid if: has amount, has transaction ID, and is a received message
       isValid: !!(amount && transactionId && isReceived),
     };
@@ -218,7 +218,7 @@ router.post(
 
       console.log('SMS received:', { message, sender, phoneNumber });
 
-      // Parse SMS to extract transaction details (supports MTN and AirtelTigo)
+      // Parse SMS to extract transaction details (supports MTN)
       const parsed = parseMobileMoneySMS(message);
 
       if (!parsed.isValid) {
@@ -309,7 +309,7 @@ router.post(
 
       // Payment verified! Update pending payment
       pendingPayment.status = 'completed';
-      pendingPayment.transactionId = parsed.transactionId; // Store AirtelTigo Transaction ID
+      pendingPayment.transactionId = parsed.transactionId; // Store MTN Transaction ID
       pendingPayment.detectedAt = new Date();
       await pendingPayment.save();
 
@@ -349,7 +349,7 @@ router.post(
         smsMessage: message,
         smsSender: sender || phoneNumber,
         detectedAmount: parsed.amount,
-        detectedReference: parsed.transactionId, // AirtelTigo Transaction ID
+        detectedReference: parsed.transactionId, // MTN Transaction ID
         senderPhoneNumber: parsed.senderPhoneNumber,
         processedAt: new Date(),
       });
