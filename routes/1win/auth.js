@@ -436,20 +436,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
       });
     }
 
-    // If pattern already exists and not forcing regeneration, return existing pattern
-    if (user.minePattern && user.minePatternTraps && !force) {
-      return res.json({
-        success: true,
-        data: {
-          pattern: user.minePattern,
-          traps: user.minePatternTraps,
-          generatedAt: user.minePatternGeneratedAt,
-          message: 'Using existing pattern',
-        },
-      });
-    }
-
-    // Validate traps
+    // Validate traps first
     const validTraps = [1, 3, 5, 7];
     const numTraps = parseInt(traps) || 3;
     
@@ -458,6 +445,25 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
         success: false,
         message: 'Invalid number of traps. Must be 1, 3, 5, or 7',
       });
+    }
+
+    // If pattern already exists and not forcing regeneration, check if trap count matches
+    // If trap count doesn't match, force regeneration
+    if (user.minePattern && user.minePatternTraps && !force) {
+      // If the requested trap count matches existing, return existing pattern
+      if (user.minePatternTraps === numTraps) {
+        return res.json({
+          success: true,
+          data: {
+            pattern: user.minePattern,
+            traps: user.minePatternTraps,
+            generatedAt: user.minePatternGeneratedAt,
+            message: 'Using existing pattern',
+          },
+        });
+      }
+      // If trap count doesn't match, we need to regenerate (treat as force)
+      console.log(`Trap count mismatch: existing=${user.minePatternTraps}, requested=${numTraps}. Regenerating pattern.`);
     }
 
     // Generate mine pattern (5x5 grid = 25 tiles)
