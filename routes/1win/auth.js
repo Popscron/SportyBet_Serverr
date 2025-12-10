@@ -200,7 +200,7 @@ router.post(
         console.log('User not found for:', emailOrPhone);
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'User does not exist',
         });
       }
 
@@ -213,7 +213,7 @@ router.post(
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Credentials wrong',
         });
       }
 
@@ -315,7 +315,7 @@ router.post(
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'User does not exist',
         });
       }
 
@@ -332,7 +332,7 @@ router.post(
       if (!isMatch) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Credentials wrong',
         });
       }
 
