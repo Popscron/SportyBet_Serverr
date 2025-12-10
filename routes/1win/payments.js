@@ -444,7 +444,7 @@ router.get('/status/:reference', protect, async (req, res) => {
     const timeRemaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
     const isExpired = timeRemaining === 0;
 
-    // Auto-expire if expired
+    // Auto-expire if expired (after 10 minutes)
     if (isExpired && pendingPayment.status === 'pending') {
       pendingPayment.status = 'expired';
       await pendingPayment.save();
@@ -452,7 +452,7 @@ router.get('/status/:reference', protect, async (req, res) => {
       // Update transaction status to failed
       await Transaction.updateOne(
         { reference: pendingPayment.reference, userId },
-        { status: 'failed', description: `Payment expired - ${pendingPayment.planType} subscription` }
+        { status: 'failed', description: `Payment expired after 10 minutes - ${pendingPayment.planType} subscription` }
       );
     }
 
@@ -582,6 +582,130 @@ router.post(
       });
     } catch (error) {
       console.error('Verify transaction error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+      });
+    }
+  }
+);
+
+// @route   POST /api/1win/payments/complete
+// @desc    Manually complete a pending payment (user confirms they made payment)
+// @access  Private
+router.post(
+  '/complete',
+  protect,
+  [
+    body('reference').notEmpty().withMessage('Reference is required'),
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+      }
+
+      const { reference } = req.body;
+      const userId = req.user._id;
+
+      // Find the pending payment
+      const pendingPayment = await PendingPayment.findOne({
+        reference,
+        userId,
+        status: 'pending',
+      });
+
+      if (!pendingPayment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Pending payment not found',
+        });
+      }
+
+      // Check if payment is expired
+      if (pendingPayment.isExpired()) {
+        pendingPayment.status = 'expired';
+        await pendingPayment.save();
+        
+        // Update transaction status to failed
+        await Transaction.updateOne(
+          { reference: pendingPayment.reference, userId },
+          { status: 'failed', description: `Payment expired - ${pendingPayment.planType} subscription` }
+        );
+        
+        return res.status(400).json({
+          success: false,
+          message: 'Payment has expired. Please create a new payment.',
+        });
+      }
+
+      // Get user
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      // Plan durations in days
+      const planDurations = {
+        gold: 30,
+        diamond: 30,
+        platinum: 30,
+      };
+
+      const subscriptionExpiresAt = new Date();
+      subscriptionExpiresAt.setDate(subscriptionExpiresAt.getDate() + planDurations[pendingPayment.planType]);
+
+      // Update pending payment to completed
+      pendingPayment.status = 'completed';
+      pendingPayment.detectedAt = new Date();
+      await pendingPayment.save();
+
+      // Update user subscription
+      user.subscriptionType = pendingPayment.planType;
+      user.subscriptionExpiresAt = subscriptionExpiresAt;
+      await user.save();
+
+      // Update transaction status to completed
+      await Transaction.updateOne(
+        { reference: pendingPayment.reference, userId },
+        {
+          status: 'completed',
+          description: `Payment completed manually for ${pendingPayment.planType} subscription`,
+        }
+      );
+
+      // Create payment transaction record
+      await PaymentTransaction.create({
+        userId: user._id,
+        pendingPaymentId: pendingPayment._id,
+        planType: pendingPayment.planType,
+        amount: pendingPayment.amount,
+        currency: pendingPayment.currency,
+        status: 'completed',
+        reference: pendingPayment.reference,
+        processedAt: new Date(),
+      });
+
+      res.json({
+        success: true,
+        message: 'Payment marked as completed. Your subscription is now active.',
+        data: {
+          payment: {
+            id: pendingPayment._id,
+            reference: pendingPayment.reference,
+            status: 'completed',
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Complete payment error:', error);
       res.status(500).json({
         success: false,
         message: 'Server error',
