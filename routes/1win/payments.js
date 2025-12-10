@@ -169,6 +169,21 @@ router.post(
         status: 'pending',
       });
 
+      // Create transaction record with pending status
+      await Transaction.create({
+        userId: user._id,
+        type: 'payment',
+        amount: amount,
+        currency: user.currency || 'GHS',
+        status: 'pending',
+        description: `Payment for ${planType} subscription - Reference: ${reference}`,
+        reference: reference,
+        metadata: {
+          planType: planType,
+          pendingPaymentId: pendingPayment._id,
+        },
+      });
+
       res.json({
         success: true,
         data: {
@@ -354,18 +369,14 @@ router.post(
         processedAt: new Date(),
       });
 
-      // Create transaction history entry
-      await Transaction.create({
-        userId: user._id,
-        type: 'deposit',
-        amount: pendingPayment.amount,
-        currency: pendingPayment.currency,
-        status: 'completed',
-        description: `Payment for ${pendingPayment.planType} subscription`,
-        balanceBefore: user.balance,
-        balanceAfter: user.balance,
-        reference: pendingPayment.reference,
-      });
+      // Update existing transaction to completed (created when payment was initiated)
+      await Transaction.updateOne(
+        { reference: pendingPayment.reference, userId: user._id },
+        {
+          status: 'completed',
+          description: `Payment completed for ${pendingPayment.planType} subscription`,
+        }
+      );
 
       console.log('Payment processed successfully for user:', user.email);
 
@@ -437,6 +448,12 @@ router.get('/status/:reference', protect, async (req, res) => {
     if (isExpired && pendingPayment.status === 'pending') {
       pendingPayment.status = 'expired';
       await pendingPayment.save();
+      
+      // Update transaction status to failed
+      await Transaction.updateOne(
+        { reference: pendingPayment.reference, userId },
+        { status: 'failed', description: `Payment expired - ${pendingPayment.planType} subscription` }
+      );
     }
 
     res.json({
@@ -516,11 +533,40 @@ router.post(
 
       // Save manual transaction ID
       pendingPayment.manualTransactionId = transactionId.trim();
+      
+      // Check if payment is expired
+      if (pendingPayment.isExpired()) {
+        pendingPayment.status = 'expired';
+        await pendingPayment.save();
+        
+        // Update transaction status to failed
+        await Transaction.updateOne(
+          { reference: pendingPayment.reference, userId },
+          { status: 'failed', description: `Payment expired - ${pendingPayment.planType} subscription` }
+        );
+        
+        return res.json({
+          success: false,
+          message: 'Payment has expired. Please create a new payment.',
+        });
+      }
+      
       await pendingPayment.save();
 
       // Try to find matching transaction in SMS logs or database
       // For now, we'll just save it and let admin verify manually
-      // In a real system, you might search through SMS logs or payment records
+      // If not found, mark as failed
+      // Note: Admin will need to manually verify and update status
+      
+      // Update transaction status to failed if verification doesn't work automatically
+      // This will be updated to 'completed' by admin if verification succeeds
+      await Transaction.updateOne(
+        { reference: pendingPayment.reference, userId },
+        { 
+          status: 'failed',
+          description: `Payment verification pending - Transaction ID: ${transactionId.trim()} - ${pendingPayment.planType} subscription`
+        }
+      );
 
       res.json({
         success: true,
@@ -530,7 +576,7 @@ router.post(
             id: pendingPayment._id,
             reference: pendingPayment.reference,
             transactionId: pendingPayment.manualTransactionId,
-            status: pendingPayment.status,
+            status: 'failed', // Will be updated by admin if verification succeeds
           },
         },
       });
