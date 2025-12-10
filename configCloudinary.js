@@ -1,10 +1,14 @@
 const cloudinary = require("cloudinary").v2;
 
-// Configure Cloudinary with environment variables or fallback to hardcoded values
+// Configure Cloudinary with environment variables (REQUIRED - no fallback for security)
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+  console.warn("⚠️  Cloudinary credentials not set in environment variables. Image uploads will fail.");
+}
+
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "dir5lv73s",
-  api_key: process.env.CLOUDINARY_API_KEY || "522134132512322",
-  api_secret: process.env.CLOUDINARY_API_SECRET || "CKkwDdGy6upFsnt9HgFhIIHxuMo"
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 // Test the configuration

@@ -6,8 +6,9 @@ Copy and paste these into Vercel Dashboard → Settings → Environment Variable
 
 ### 1. MongoDB Connection
 ```
-MONGO_URL=mongodb+srv://1win_db_user:Fiifi9088.me@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority
+MONGO_URL=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
 ```
+**⚠️ SECURITY:** Replace `username`, `password`, `cluster`, and `database` with your actual MongoDB credentials
 
 ### 2. JWT Secret (Choose ONE - both work)
 ```
@@ -67,12 +68,12 @@ SMTP_PASSWORD=your-gmail-app-password
 If you want to use Cloudinary for image storage:
 
 ```
-CLOUDINARY_CLOUD_NAME=dir5lv73s
-CLOUDINARY_API_KEY=522134132512322
-CLOUDINARY_API_SECRET=CKkwDdGy6upFsnt9HgFhIIHxuMo
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
 ```
 
-**Note:** These are the current values in your code. Consider changing them for security.
+**⚠️ SECURITY:** Replace with your actual Cloudinary credentials from https://cloudinary.com/console
 
 ### 8. Node Environment
 ```
@@ -86,12 +87,14 @@ NODE_ENV=production
 Copy all of these into Vercel:
 
 ```
-MONGO_URL=mongodb+srv://1win_db_user:Fiifi9088.me@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority
+MONGO_URL=mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority
 JWT_SECRET=your-super-secret-jwt-key-change-in-production-123456789
 JWT_EXPIRE=7d
-MOBILE_MONEY_PHONE=0535899507
-FRONTEND_URL=https://admingh.online
+MOBILE_MONEY_PHONE=your-phone-number
+FRONTEND_URL=https://your-frontend-domain.com
 NODE_ENV=production
+ADMIN_EMAILS=admin1@example.com,admin2@example.com
+ADMIN_PASSWORD=your-secure-admin-password
 ```
 
 ---

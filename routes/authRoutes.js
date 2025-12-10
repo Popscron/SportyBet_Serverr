@@ -395,12 +395,14 @@ router.post("/admin/login", async (req, res) => {
         .status(400)
         .json({ message: "email and password are required." });
     }
+    // Check admin credentials from environment variables
+    const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    
     if (
-      !(
-        (email === "Capsiteafrica@gmail.com" ||
-          email === "Moderator@gmail.com") &&
-        password === "Fiifi9088."
-      )
+      !adminEmails.includes(email.toLowerCase()) ||
+      !adminPassword ||
+      password !== adminPassword
     ) {
       return res.status(400).json({ message: "email or password is wrong." });
     }
