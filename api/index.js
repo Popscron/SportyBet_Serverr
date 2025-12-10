@@ -86,6 +86,25 @@ app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
+// Middleware to ensure MongoDB connection on each request (for serverless)
+app.use(async (req, res, next) => {
+  // Skip health check to avoid circular dependency
+  if (req.path === '/health') {
+    return next();
+  }
+  
+  // Try to connect if not connected
+  if (mongoose.connection.readyState === 0) {
+    try {
+      await connectMongoDB();
+    } catch (error) {
+      console.error('MongoDB connection error in middleware:', error.message);
+      // Continue anyway - some routes might not need DB
+    }
+  }
+  next();
+});
+
 // Register the routes
 app.get("/api", (req, res) => {
   res.json({ message: "API running successfully" });
@@ -175,18 +194,33 @@ const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.
 
 // Connect to MongoDB (only if not already connected)
 // For serverless functions, we connect on first request if not already connected
-if (mongoose.connection.readyState === 0) {
-  mongoose
+let mongoConnectionPromise = null;
+
+function connectMongoDB() {
+  if (mongoose.connection.readyState === 1) {
+    return Promise.resolve(); // Already connected
+  }
+  
+  if (mongoConnectionPromise) {
+    return mongoConnectionPromise; // Connection in progress
+  }
+  
+  mongoConnectionPromise = mongoose
     .connect(mongoUrl, {
       serverSelectionTimeoutMS: 5000,
     })
     .then(() => {
       console.log("Connected to MongoDB");
+      return true;
     })
     .catch((error) => {
-      console.error("Error connecting to MongoDB:", error);
-      // Don't throw - let the app continue even if DB connection fails initially
+      console.error("Error connecting to MongoDB:", error.message);
+      mongoConnectionPromise = null; // Reset so we can retry
+      // Don't throw - let the app continue even if DB connection fails
+      return false;
     });
+  
+  return mongoConnectionPromise;
 }
 
 // Root route - API information
@@ -212,13 +246,28 @@ app.get("/", (req, res) => {
 });
 
 // Health check
-app.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Server is healthy",
-    timestamp: new Date().toISOString(),
-    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-  });
+app.get("/health", async (req, res) => {
+  try {
+    // Try to connect if not connected
+    await connectMongoDB();
+    
+    res.json({
+      success: true,
+      message: "Server is healthy",
+      timestamp: new Date().toISOString(),
+      mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+      env: {
+        hasMongoUrl: !!process.env.MONGO_URL,
+        nodeEnv: process.env.NODE_ENV,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Health check failed",
+      error: error.message,
+    });
+  }
 });
 
 // Export the Express app as a serverless function for Vercel
