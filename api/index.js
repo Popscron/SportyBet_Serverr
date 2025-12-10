@@ -174,17 +174,18 @@ app.post("/send-notification", async (req, res) => {
 const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win';
 
 // Connect to MongoDB (only if not already connected)
+// For serverless functions, we connect on first request if not already connected
 if (mongoose.connection.readyState === 0) {
   mongoose
     .connect(mongoUrl, {
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
     })
     .then(() => {
       console.log("Connected to MongoDB");
     })
     .catch((error) => {
       console.error("Error connecting to MongoDB:", error);
+      // Don't throw - let the app continue even if DB connection fails initially
     });
 }
 
@@ -221,5 +222,6 @@ app.get("/health", (req, res) => {
 });
 
 // Export the Express app as a serverless function for Vercel
+// For Vercel, we can export the app directly
 module.exports = app;
 
