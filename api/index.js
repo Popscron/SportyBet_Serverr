@@ -84,7 +84,17 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+// Only serve uploads if directory exists (not available in serverless)
+try {
+  const fs = require('fs');
+  const uploadsPath = path.join(__dirname, "../uploads");
+  if (fs.existsSync(uploadsPath)) {
+    app.use("/uploads", express.static(uploadsPath));
+  }
+} catch (error) {
+  // In serverless, uploads directory doesn't exist - this is expected
+  console.log('Uploads directory not available (serverless environment)');
+}
 
 // Middleware to ensure MongoDB connection on each request (for serverless)
 app.use(async (req, res, next) => {
