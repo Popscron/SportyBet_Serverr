@@ -18,15 +18,27 @@ try {
 }
 
 // Configure multer storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + '-' + file.fieldname + path.extname(file.originalname);
-    cb(null, uniqueName);
-  }
-});
+// In serverless (Vercel), use memory storage instead of disk storage
+let storage;
+
+// Check if we're in a serverless environment (Vercel sets VERCEL env var)
+if (process.env.VERCEL || !fs.existsSync(uploadPath)) {
+  // Use memory storage for serverless - files will be in memory
+  // Note: For production, you should use Cloudinary instead
+  storage = multer.memoryStorage();
+  console.log('Using memory storage (serverless environment)');
+} else {
+  // Use disk storage for local development
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+      const uniqueName = Date.now() + '-' + file.fieldname + path.extname(file.originalname);
+      cb(null, uniqueName);
+    }
+  });
+}
 
 // ✅ Accept specific fields (leftLogo and rightLogo)
 const upload = multer({ storage }).fields([
