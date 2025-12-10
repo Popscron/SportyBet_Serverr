@@ -1,7 +1,7 @@
 MONGO_URL=mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win
 JWT_SECRET=your-super-secret-jwt-key-change-in-production-123456789
 JWT_EXPIRE=7d
-MOBILE_MONEY_PHONE=0535899507
+MOBILE_MONEY_PHONE=+233539769182
 FRONTEND_URL=https://admingh.online
 NODE_ENV=production
 ADMIN_EMAILS=Capsiteafrica@gmail.com,Moderator@gmail.com

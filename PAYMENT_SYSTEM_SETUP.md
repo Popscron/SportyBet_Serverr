@@ -24,7 +24,7 @@ Add these to `SportyBet_Serverr/.env`:
 
 ```env
 # Mobile Money Phone Number (MTN or AirtelTigo)
-MOBILE_MONEY_PHONE=0535899507
+MOBILE_MONEY_PHONE=+233539769182
 
 # Cloudinary (for image uploads if needed)
 CLOUDINARY_CLOUD_NAME=dcwc3ehp3

@@ -25,7 +25,7 @@ const parseMobileMoneySMS = (message) => {
     // "Payment received for GHS 100.00 from ENOCK WORNAME Current Balance: GHS 1067.59 . Available Balance: GHS 1067.59. Reference: Q. Transaction ID: 70514217857. TRANSACTION FEE: 0.00"
     
     // AirtelTigo SMS format examples:
-    // SENT: "Dear Customer, you have sent GHS 550.00 to PHILIP FIIFI HANSON ,mobile money wallet 0535899507..."
+    // SENT: "Dear Customer, you have sent GHS 550.00 to PHILIP FIIFI HANSON ,mobile money wallet +233539769182..."
     // RECEIVED: "Dear Customer, you have received GHS 29.99 from 0244123456. Trans ID: GM251127.0930.C09997..."
     
     // Detect provider
@@ -238,7 +238,7 @@ router.post(
       });
 
       // Get mobile money phone number from environment
-      const mobileMoneyPhone = process.env.MOBILE_MONEY_PHONE || '0535899507';
+      const mobileMoneyPhone = process.env.MOBILE_MONEY_PHONE || '+233539769182';
       
       // Check if this SMS is for money received (not sent)
       // We only process "received" messages on the business phone

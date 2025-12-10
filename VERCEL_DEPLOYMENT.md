@@ -28,7 +28,7 @@ Before deploying, you need to set up environment variables in Vercel:
 
 4. **MOBILE_MONEY_PHONE** (Optional - for payment system)
    - Phone number for receiving mobile money payments
-   - Example: `0535899507`
+   - Example: `+233539769182`
 
 5. **SMTP Configuration** (Optional - for email service)
    - `SMTP_HOST` - SMTP server hostname

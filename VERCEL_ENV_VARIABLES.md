@@ -33,7 +33,7 @@ JWT_EXPIRE=7d
 
 ### 4. Mobile Money Phone Number
 ```
-MOBILE_MONEY_PHONE=0535899507
+MOBILE_MONEY_PHONE=+233539769182
 ```
 (Your AirtelTigo mobile money number for receiving payments)
 
