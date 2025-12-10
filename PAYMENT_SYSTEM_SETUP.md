@@ -89,7 +89,7 @@ Dear Customer, you have received GHS 29.99 from 0244123456. Trans ID: GM251127.0
 
 **Sent Money (ignored):**
 ```
-Dear Customer, you have sent GHS 550.00 to PHILIP FIIFI HANSON, mobile money wallet 0535899507...
+Dear Customer, you have sent GHS 550.00 to PHILIP FIIFI HANSON, mobile money wallet +233539769182...
 ```
 
 ## Payment Matching Logic
