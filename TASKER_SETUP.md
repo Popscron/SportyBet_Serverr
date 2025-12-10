@@ -37,9 +37,9 @@ This guide will help you configure Tasker to automatically forward SMS messages 
 5. Configure:
    - **Method**: POST
    - **URL**: 
-     - **Local**: `http://YOUR_COMPUTER_IP:5002/api/1win/payments/sms-webhook`
-     - **Example**: `http://192.168.1.100:5002/api/1win/payments/sms-webhook`
-     - **Or if deployed**: `https://your-domain.com/api/1win/payments/sms-webhook`
+     - **Vercel (Production)**: `https://sporty-bet-serverr.vercel.app/api/1win/payments/sms-webhook` ✅ **USE THIS**
+     - **Local (Development)**: `http://YOUR_COMPUTER_IP:5008/api/1win/payments/sms-webhook`
+     - **Example Local**: `http://192.168.1.100:5008/api/1win/payments/sms-webhook`
    - **Headers**: 
      - Add: `Content-Type` = `application/json`
    - **Body**: 
