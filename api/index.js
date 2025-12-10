@@ -31,18 +31,31 @@ const manualCardRoutes = require("../routes/manualCardRoute.js");
 const spinBottleRoutes = require("../routes/spinBottleRoute.js");
 
 // CORS configuration
+const allowedOrigins = [
+  "https://admingh.online",
+  "https://www.admingh.online",
+  "https://1win-web.vercel.app",
+  "https://1win-web-*.vercel.app", // Allow all Vercel preview deployments
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5008",
+];
+
 app.options("*", (req, res) => {
   const origin = req.headers.origin;
-  const allowedOrigins = [
-    "https://admingh.online",
-    "https://www.admingh.online",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-  ];
   
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
+  // Check if origin matches any allowed origin (including wildcard patterns)
+  const isAllowed = allowedOrigins.some(allowed => {
+    if (allowed.includes('*')) {
+      const pattern = allowed.replace('*', '.*');
+      return new RegExp(`^${pattern}$`).test(origin);
+    }
+    return allowed === origin;
+  });
+  
+  if (isAllowed || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
@@ -53,20 +66,22 @@ app.options("*", (req, res) => {
 app.use(
   cors({
     origin: function (origin, callback) {
-      const allowedOrigins = [
-        "https://admingh.online",
-        "https://www.admingh.online",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-      ];
-      
       // Allow requests with no origin (like mobile apps, Postman, or Tasker)
       if (!origin) return callback(null, true);
       
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      // Check if origin matches any allowed origin (including wildcard patterns)
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (allowed.includes('*')) {
+          const pattern = allowed.replace('*', '.*');
+          return new RegExp(`^${pattern}$`).test(origin);
+        }
+        return allowed === origin;
+      });
+      
+      if (isAllowed) {
         callback(null, true);
       } else {
+        console.warn(`CORS blocked origin: ${origin}`);
         callback(new Error("Not allowed by CORS"));
       }
     },
@@ -281,6 +296,18 @@ app.get("/health", async (req, res) => {
 });
 
 // Export the Express app as a serverless function for Vercel
-// For Vercel, we can export the app directly
-module.exports = app;
+// Vercel expects a handler function that receives (req, res)
+module.exports = async (req, res) => {
+  // Ensure MongoDB is connected before handling request
+  if (mongoose.connection.readyState === 0) {
+    try {
+      await connectMongoDB();
+    } catch (error) {
+      console.error('MongoDB connection error:', error.message);
+    }
+  }
+  
+  // Handle the request with Express app
+  return app(req, res);
+};
 
