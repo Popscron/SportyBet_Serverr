@@ -171,7 +171,7 @@ app.post("/send-notification", async (req, res) => {
 });
 
 // Connect to MongoDB
-const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.me@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority';
+const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win';
 
 // Connect to MongoDB (only if not already connected)
 if (mongoose.connection.readyState === 0) {

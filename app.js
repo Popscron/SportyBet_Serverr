@@ -170,7 +170,7 @@ app.post("/send-notification", async (req, res) => {
 });
 
 // Connect to MongoDB (replace with your own URI)
-const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.me@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority';
+const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win';
 
 mongoose
   .connect(mongoUrl, {
