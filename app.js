@@ -27,24 +27,63 @@ const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
+// CORS must be configured BEFORE other middleware
+// Handle preflight requests first
+app.options("*", (req, res) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    "https://admingh.online",
+    "https://www.admingh.online",
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+  }
+  res.sendStatus(200);
+});
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "https://admingh.online",
+        "https://www.admingh.online",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+      ];
+      
+      // Allow requests with no origin (like mobile apps, Postman, or Tasker)
+      // Tasker sends requests without an origin header, so this allows them through
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    exposedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 200,
+  })
+);
+
 // Middleware for parsing JSON
 app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-app.use(
-  cors({
-    origin: [
-      "https://admingh.online",
-      "https://www.admingh.online",
-      "http://localhost:5173",
-    ],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
 // Register the routes
 
 app.get("/api", (req, res) => {
@@ -71,6 +110,15 @@ app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
+
+// 1Win routes - mounted at /api/1win
+const oneWinAuthRoutes = require("./routes/1win/auth");
+const oneWinAdminRoutes = require("./routes/1win/admin");
+// PAYMENT SYSTEM COMMENTED OUT - Uncomment when ready to enable payments
+// const oneWinPaymentRoutes = require("./routes/1win/payments");
+app.use("/api/1win/auth", oneWinAuthRoutes);
+app.use("/api/1win/admin", oneWinAdminRoutes);
+// app.use("/api/1win/payments", oneWinPaymentRoutes);
 
 const pushTokens = {};
 
