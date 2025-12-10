@@ -3,32 +3,34 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 const bodyParser = require("body-parser");
-const app = express();
-const otpRoutes = require("./routes/authRoutes");
-const betRoute = require("./routes/betRoute");
-const multibet = require("./routes/multibetRoutes");
-const depositRoute = require("./routes/depositeRoute.js");
-const verifycodeRoute = require("./routes/verifyCodeRoute.js");
-const oddRoute = require("./routes/oddRoute.js");
-const cashOut = require("./routes/cashoutRoute.js");
-const imageRoutes = require("./routes/ImageRoute.js");
-const matchesRoutes = require("./routes/matchesRoute.js");
-const topmatchesRoutes = require("./routes/topMatchRoute.js");
-const WalletRoutes = require("./routes/wallet.js");
-const WinningRoutes = require("./routes/winningRoute.js");
-const addonRoutes = require("./routes/addonRoute.js");
-const useraddonRoutes = require("./routes/userAddonRoute.js");
-const proImgRoutes = require("./routes/profileImageRoute.js");
-const userImgRoutes = require("./routes/UserImageRoute.js");
-const BookingRoutes = require("./routes/BookingRoute.js");
-const notification = require("./routes/notification.js");
-const manualCardRoutes = require("./routes/manualCardRoute.js");
-const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
-// CORS must be configured BEFORE other middleware
-// Handle preflight requests first
+const app = express();
+
+// Import routes
+const otpRoutes = require("../routes/authRoutes");
+const betRoute = require("../routes/betRoute");
+const multibet = require("../routes/multibetRoutes");
+const depositRoute = require("../routes/depositeRoute.js");
+const verifycodeRoute = require("../routes/verifyCodeRoute.js");
+const oddRoute = require("../routes/oddRoute.js");
+const cashOut = require("../routes/cashoutRoute.js");
+const imageRoutes = require("../routes/ImageRoute.js");
+const matchesRoutes = require("../routes/matchesRoute.js");
+const topmatchesRoutes = require("../routes/topMatchRoute.js");
+const WalletRoutes = require("../routes/wallet.js");
+const WinningRoutes = require("../routes/winningRoute.js");
+const addonRoutes = require("../routes/addonRoute.js");
+const useraddonRoutes = require("../routes/userAddonRoute.js");
+const proImgRoutes = require("../routes/profileImageRoute.js");
+const userImgRoutes = require("../routes/UserImageRoute.js");
+const BookingRoutes = require("../routes/BookingRoute.js");
+const notification = require("../routes/notification.js");
+const manualCardRoutes = require("../routes/manualCardRoute.js");
+const spinBottleRoutes = require("../routes/spinBottleRoute.js");
+
+// CORS configuration
 app.options("*", (req, res) => {
   const origin = req.headers.origin;
   const allowedOrigins = [
@@ -60,7 +62,6 @@ app.use(
       ];
       
       // Allow requests with no origin (like mobile apps, Postman, or Tasker)
-      // Tasker sends requests without an origin header, so this allows them through
       if (!origin) return callback(null, true);
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -83,9 +84,9 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
-// Register the routes
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
+// Register the routes
 app.get("/api", (req, res) => {
   res.json({ message: "API running successfully" });
 });
@@ -112,9 +113,9 @@ app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
 
 // 1Win routes - mounted at /api/1win
-const oneWinAuthRoutes = require("./routes/1win/auth");
-const oneWinAdminRoutes = require("./routes/1win/admin");
-const oneWinPaymentRoutes = require("./routes/1win/payments");
+const oneWinAuthRoutes = require("../routes/1win/auth");
+const oneWinAdminRoutes = require("../routes/1win/admin");
+const oneWinPaymentRoutes = require("../routes/1win/payments");
 app.use("/api/1win/auth", oneWinAuthRoutes);
 app.use("/api/1win/admin", oneWinAdminRoutes);
 app.use("/api/1win/payments", oneWinPaymentRoutes);
@@ -169,26 +170,56 @@ app.post("/send-notification", async (req, res) => {
   }
 });
 
-// Connect to MongoDB (replace with your own URI)
+// Connect to MongoDB
 const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.me@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority';
 
-mongoose
-  .connect(mongoUrl, {
-    // useNewUrlParser: true,
-    // useUnifiedTopology: true,
-  })
-  .then(() => {
-    console.log("Connected to MongoDB");
-  })
-  .catch((error) => {
-    console.error("Error connecting to MongoDB:", error);
-  });
+// Connect to MongoDB (only if not already connected)
+if (mongoose.connection.readyState === 0) {
+  mongoose
+    .connect(mongoUrl, {
+      // useNewUrlParser: true,
+      // useUnifiedTopology: true,
+    })
+    .then(() => {
+      console.log("Connected to MongoDB");
+    })
+    .catch((error) => {
+      console.error("Error connecting to MongoDB:", error);
+    });
+}
 
-const PORT = process.env.PORT || 5008;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Root route - API information
+app.get("/", (req, res) => {
+  res.json({
+    success: true,
+    message: "1Win Server API",
+    version: "1.0.0",
+    endpoints: {
+      auth: "/api/auth",
+      "1win-auth": "/api/1win/auth",
+      "1win-admin": "/api/1win/admin",
+      "1win-payments": "/api/1win/payments",
+      games: "/api/games",
+      wallet: "/api/wallet",
+      promo: "/api/promo",
+      content: "/api/content",
+      admin: "/api/admin",
+      health: "/health",
+    },
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// updated
+// Health check
+app.get("/health", (req, res) => {
+  res.json({
+    success: true,
+    message: "Server is healthy",
+    timestamp: new Date().toISOString(),
+    mongodb: mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+  });
+});
 
-// test for hiickey
+// Export the Express app as a serverless function for Vercel
+module.exports = app;
+

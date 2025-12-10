@@ -41,13 +41,14 @@ router.post(
       }
 
       // Check if user already exists
-      const existingUser = await User.findOne({
-        $or: [
-          { email: email?.toLowerCase() },
-          { phone },
-          { accountId },
-        ],
-      });
+      const queryConditions = [];
+      if (email) queryConditions.push({ email: email.toLowerCase() });
+      if (phone) queryConditions.push({ phone });
+      if (accountId) queryConditions.push({ accountId });
+      
+      const existingUser = queryConditions.length > 0 
+        ? await User.findOne({ $or: queryConditions })
+        : null;
 
       if (existingUser) {
         return res.status(400).json({
@@ -59,33 +60,42 @@ router.post(
       // Validate promo code if provided
       let bonusAmount = 0;
       if (promoCode) {
-        const promo = await PromoCode.findOne({
-          code: promoCode.toUpperCase(),
-          isActive: true,
-          $or: [{ validUntil: { $gte: new Date() } }, { validUntil: null }],
-        });
+        try {
+          const promo = await PromoCode.findOne({
+            code: promoCode.toUpperCase(),
+            isActive: true,
+            $or: [{ validUntil: { $gte: new Date() } }, { validUntil: null }],
+          });
 
-        if (promo && (promo.maxUses === null || promo.usedCount < promo.maxUses)) {
-          if (promo.isPercentage) {
-            bonusAmount = (promo.value / 100) * 0; // Will be applied on first deposit
-          } else {
-            bonusAmount = promo.value;
+          if (promo && (promo.maxUses === null || promo.usedCount < promo.maxUses)) {
+            if (promo.isPercentage) {
+              bonusAmount = (promo.value / 100) * 0; // Will be applied on first deposit
+            } else {
+              bonusAmount = promo.value;
+            }
+            promo.usedCount += 1;
+            await promo.save();
           }
-          promo.usedCount += 1;
-          await promo.save();
+        } catch (promoError) {
+          console.error('Promo code validation error:', promoError);
+          // Don't fail registration if promo code lookup fails, just skip bonus
         }
       }
 
       // Create user
-      const user = await User.create({
-        email: email?.toLowerCase(),
-        phone,
-        accountId,
-        name,
+      const userData = {
         password,
         currency: currency || 'GHS',
-        promoCode: promoCode?.toUpperCase(),
-      });
+      };
+      
+      // Only add fields that are provided
+      if (email) userData.email = email.toLowerCase();
+      if (phone) userData.phone = phone;
+      if (accountId) userData.accountId = accountId;
+      if (name) userData.name = name;
+      if (promoCode) userData.promoCode = promoCode.toUpperCase();
+      
+      const user = await User.create(userData);
 
       // Add bonus if promo code was valid
       if (bonusAmount > 0) {
@@ -122,9 +132,33 @@ router.post(
       });
     } catch (error) {
       console.error('Registration error:', error);
+      console.error('Error stack:', error.stack);
+      
+      // Handle duplicate key errors (MongoDB unique constraint violations)
+      if (error.code === 11000 || error.name === 'MongoServerError') {
+        const field = Object.keys(error.keyPattern || {})[0];
+        return res.status(400).json({
+          success: false,
+          message: `User already exists with this ${field}`,
+        });
+      }
+      
+      // Handle validation errors
+      if (error.name === 'ValidationError') {
+        return res.status(400).json({
+          success: false,
+          message: 'Validation error',
+          errors: Object.values(error.errors).map(err => ({
+            field: err.path,
+            message: err.message,
+          })),
+        });
+      }
+      
       res.status(500).json({
         success: false,
         message: 'Server error during registration',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
   }

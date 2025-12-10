@@ -1,0 +1,13 @@
+node_modules
+uploads
+*.log
+.env.local
+.env.development
+.git
+.gitignore
+README.md
+*.md
+createTestUser.js
+createTestUser1win.js
+verifyTestUser.js
+
