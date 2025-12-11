@@ -8,14 +8,11 @@ const { protect } = require('../../middleware/1win/auth');
 const { sendPaymentConfirmationEmail } = require('../../utils/emailService');
 const router = express.Router();
 
-// Helper function to generate unique reference
+// Helper function to generate unique reference (4 digits: 0000-9999)
 const generateReference = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let reference = '';
-  for (let i = 0; i < 8; i++) {
-    reference += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return reference;
+  // Generate a random 4-digit number (0000 to 9999)
+  const reference = Math.floor(1000 + Math.random() * 9000).toString();
+  return reference; // Returns a string like "1234", "5678", etc.
 };
 
 // Helper function to parse Mobile Money SMS (supports MTN)
@@ -732,6 +729,61 @@ router.get('/my-payments', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Get payments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+// @route   POST /api/1win/payments/cancel/:reference
+// @desc    Cancel a pending payment
+// @access  Private
+router.post('/cancel/:reference', protect, async (req, res) => {
+  try {
+    const { reference } = req.params;
+    const userId = req.user._id;
+
+    // Find the pending payment
+    const pendingPayment = await PendingPayment.findOne({
+      reference,
+      userId,
+      status: 'pending',
+    });
+
+    if (!pendingPayment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending payment not found',
+      });
+    }
+
+    // Update payment status to failed (cancelled)
+    pendingPayment.status = 'failed';
+    await pendingPayment.save();
+
+    // Update transaction status to cancelled
+    await Transaction.updateOne(
+      { reference: pendingPayment.reference, userId },
+      { 
+        status: 'cancelled',
+        description: `Payment cancelled by user - ${pendingPayment.planType} subscription`
+      }
+    );
+
+      res.json({
+        success: true,
+        message: 'Payment cancelled successfully',
+        data: {
+          payment: {
+            id: pendingPayment._id,
+            reference: pendingPayment.reference,
+            status: 'failed', // Status is 'failed' but description shows 'cancelled'
+          },
+        },
+      });
+  } catch (error) {
+    console.error('Cancel payment error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

@@ -46,6 +46,11 @@ const pendingPaymentSchema = new mongoose.Schema(
       default: null,
       comment: 'Transaction ID from SMS when payment is detected',
     },
+    manualTransactionId: {
+      type: String,
+      default: null,
+      comment: 'Transaction ID manually submitted by user for verification',
+    },
     detectedAt: {
       type: Date,
       default: null,
