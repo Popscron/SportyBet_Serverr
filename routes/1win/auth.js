@@ -480,9 +480,13 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
 
     // Validate traps first
     const validTraps = [1, 3, 5, 7];
-    const numTraps = parseInt(traps) || 3;
+    const numTraps = parseInt(traps);
     
-    if (!validTraps.includes(numTraps)) {
+    console.log(`🔍 Generate pattern request - User: ${user.email}, Requested traps: ${traps}, Parsed: ${numTraps}, Force: ${force}`);
+    console.log(`   Current user pattern - Traps: ${user.minePatternTraps}, Pattern exists: ${!!user.minePattern}`);
+    
+    if (isNaN(numTraps) || !validTraps.includes(numTraps)) {
+      console.error(`❌ Invalid traps value: ${traps} (parsed: ${numTraps})`);
       return res.status(400).json({
         success: false,
         message: 'Invalid number of traps. Must be 1, 3, 5, or 7',
@@ -494,6 +498,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
     if (user.minePattern && user.minePatternTraps && !force) {
       // If the requested trap count matches existing, return existing pattern
       if (user.minePatternTraps === numTraps) {
+        console.log(`✅ Using existing pattern with ${numTraps} traps`);
         return res.json({
           success: true,
           data: {
@@ -506,7 +511,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
         });
       }
       // If trap count doesn't match, we need to regenerate (treat as force)
-      console.log(`Trap count mismatch: existing=${user.minePatternTraps}, requested=${numTraps}. Regenerating pattern.`);
+      console.log(`⚠️ Trap count mismatch: existing=${user.minePatternTraps}, requested=${numTraps}. Regenerating pattern.`);
     }
 
     // Generate mine pattern (5x5 grid = 25 tiles)
@@ -531,7 +536,11 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
     user.minePatternGeneratedAt = new Date();
     await user.save();
 
-    console.log(`Mine pattern generated for user ${user._id}: ${minePositions.join(', ')}`);
+    console.log(`✅ Mine pattern generated for user ${user.email} (${user._id}):`);
+    console.log(`   - Traps: ${numTraps}`);
+    console.log(`   - Mine positions: ${minePositions.join(', ')}`);
+    console.log(`   - Revealed safe spots: ${revealedSpots.join(', ')}`);
+    console.log(`   - Total safe spots: ${safeSpots.length}`);
 
     res.json({
       success: true,
@@ -543,7 +552,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Generate mine pattern error:', error);
+    console.error('❌ Generate mine pattern error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
