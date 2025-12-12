@@ -152,7 +152,8 @@ router.post(
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
       // Mobile Money phone number (configure this in .env or database)
-      const phoneNumber = process.env.MOBILE_MONEY_PHONE || '0244123456';
+      const phoneNumber = process.env.MOBILE_MONEY_PHONE || '+233539769182';
+      const recipientName = process.env.MOBILE_MONEY_NAME || 'Agyman alex';
 
       // Create pending payment
       const pendingPayment = await PendingPayment.create({
@@ -191,8 +192,9 @@ router.post(
             currency: pendingPayment.currency,
             reference: pendingPayment.reference,
             phoneNumber: pendingPayment.phoneNumber,
+            recipientName: recipientName,
             expiresAt: pendingPayment.expiresAt,
-            instructions: `Send GHS ${pendingPayment.amount} to ${pendingPayment.phoneNumber} with reference: ${pendingPayment.reference}`,
+            instructions: `Send ${pendingPayment.currency} ${pendingPayment.amount} to ${recipientName} (${pendingPayment.phoneNumber}) with reference: ${pendingPayment.reference}`,
           },
         },
       });
@@ -349,7 +351,27 @@ router.post(
       user.subscriptionExpiresAt = subscriptionExpiresAt;
       await user.save();
 
-      // Create payment transaction record
+      // Calculate 50/50 split if user was referred by an admin
+      let referringAdminId = null;
+      let mainAdminShare = 0;
+      let referringAdminShare = 0;
+
+      if (user.referredBy) {
+        const referringAdmin = await User.findById(user.referredBy);
+        if (referringAdmin && referringAdmin.isAdmin) {
+          referringAdminId = referringAdmin._id;
+          // 50/50 split
+          const splitAmount = pendingPayment.amount / 2;
+          mainAdminShare = splitAmount;
+          referringAdminShare = splitAmount;
+
+          // Update referring admin's total earnings
+          referringAdmin.totalEarnings = (referringAdmin.totalEarnings || 0) + referringAdminShare;
+          await referringAdmin.save();
+        }
+      }
+
+      // Create payment transaction record with referral split
       await PaymentTransaction.create({
         userId: user._id,
         pendingPaymentId: pendingPayment._id,
@@ -364,6 +386,9 @@ router.post(
         detectedReference: parsed.transactionId, // MTN Transaction ID
         senderPhoneNumber: parsed.senderPhoneNumber,
         processedAt: new Date(),
+        referringAdminId,
+        mainAdminShare,
+        referringAdminShare,
       });
 
       // Update existing transaction to completed (created when payment was initiated)
@@ -453,6 +478,8 @@ router.get('/status/:reference', protect, async (req, res) => {
       );
     }
 
+    const recipientName = process.env.MOBILE_MONEY_NAME || 'Agyman alex';
+    
     res.json({
       success: true,
       data: {
@@ -463,6 +490,7 @@ router.get('/status/:reference', protect, async (req, res) => {
           currency: pendingPayment.currency,
           reference: pendingPayment.reference,
           phoneNumber: pendingPayment.phoneNumber,
+          recipientName: recipientName,
           status: pendingPayment.status,
           expiresAt: pendingPayment.expiresAt,
           timeRemaining, // Time remaining in seconds
@@ -670,6 +698,26 @@ router.post(
       user.subscriptionExpiresAt = subscriptionExpiresAt;
       await user.save();
 
+      // Calculate 50/50 split if user was referred by an admin
+      let referringAdminId = null;
+      let mainAdminShare = 0;
+      let referringAdminShare = 0;
+
+      if (user.referredBy) {
+        const referringAdmin = await User.findById(user.referredBy);
+        if (referringAdmin && referringAdmin.isAdmin) {
+          referringAdminId = referringAdmin._id;
+          // 50/50 split
+          const splitAmount = pendingPayment.amount / 2;
+          mainAdminShare = splitAmount;
+          referringAdminShare = splitAmount;
+
+          // Update referring admin's total earnings
+          referringAdmin.totalEarnings = (referringAdmin.totalEarnings || 0) + referringAdminShare;
+          await referringAdmin.save();
+        }
+      }
+
       // Update transaction status to completed
       await Transaction.updateOne(
         { reference: pendingPayment.reference, userId },
@@ -679,7 +727,7 @@ router.post(
         }
       );
 
-      // Create payment transaction record
+      // Create payment transaction record with referral split
       await PaymentTransaction.create({
         userId: user._id,
         pendingPaymentId: pendingPayment._id,
@@ -689,6 +737,9 @@ router.post(
         status: 'completed',
         reference: pendingPayment.reference,
         processedAt: new Date(),
+        referringAdminId,
+        mainAdminShare,
+        referringAdminShare,
       });
 
       res.json({

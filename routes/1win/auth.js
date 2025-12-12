@@ -16,7 +16,7 @@ router.post(
   [
     body('email').optional().isEmail().normalizeEmail(),
     body('phone').optional().isMobilePhone(),
-    body('accountId').optional().isLength({ min: 8, max: 8 }).withMessage('Account ID must be exactly 8 characters'),
+    body('accountId').optional().isLength({ min: 8, max: 10 }).withMessage('Account ID must be 8 to 10 digits'),
     body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
     body('currency').optional().isIn(['GHS', 'PKR', 'USD', 'EUR', 'NGN', 'INR']),
   ],
@@ -30,7 +30,7 @@ router.post(
         });
       }
 
-      const { email, phone, accountId, password, name, currency, promoCode } = req.body;
+      const { email, phone, accountId, password, name, currency, promoCode, inviteCode } = req.body;
 
       // Validate that at least email, phone, or accountId is provided
       if (!email && !phone && !accountId) {
@@ -38,6 +38,16 @@ router.post(
           success: false,
           message: 'Either email, phone number, or account ID is required',
         });
+      }
+
+      // Track referral if invite code is provided
+      let referringAdmin = null;
+      if (inviteCode) {
+        referringAdmin = await User.findOne({
+          inviteCode: inviteCode.toUpperCase(),
+          isAdmin: true,
+        });
+        // Don't fail registration if invite code is invalid, just don't track referral
       }
 
       // Check if user already exists
@@ -86,6 +96,7 @@ router.post(
       const userData = {
         password,
         currency: currency || 'GHS',
+        registeredFromWebsite: true, // Mark as registered from website
       };
       
       // Only add fields that are provided
@@ -94,6 +105,7 @@ router.post(
       if (accountId) userData.accountId = accountId;
       if (name) userData.name = name;
       if (promoCode) userData.promoCode = promoCode.toUpperCase();
+      if (referringAdmin) userData.referredBy = referringAdmin._id;
       
       const user = await User.create(userData);
 
@@ -183,9 +195,9 @@ router.post(
         });
       }
 
-      const { emailOrPhone, password } = req.body;
+      const { emailOrPhone, password, source } = req.body; // source: 'mobile' or 'web'
 
-      console.log('Login attempt:', { emailOrPhone, passwordLength: password?.length });
+      console.log('Login attempt:', { emailOrPhone, passwordLength: password?.length, source });
 
       // Find user by email, phone, or accountId
       const user = await User.findOne({
@@ -204,7 +216,19 @@ router.post(
         });
       }
 
-      console.log('User found:', { email: user.email, accountId: user.accountId, name: user.name });
+      console.log('User found:', { email: user.email, accountId: user.accountId, name: user.name, role: user.role });
+
+      // If login is from mobile app, only allow admin users
+      if (source === 'mobile' || source === 'app') {
+        if (user.role !== 'admin' && !user.isAdmin) {
+          console.log('Mobile app login denied: User is not an admin');
+          return res.status(403).json({
+            success: false,
+            message: 'Access denied. Only admin users can login to the 1Win mobile app.',
+          });
+        }
+      }
+      // For website login, both admin and user roles are allowed (no restriction)
 
       // Check password
       const isMatch = await user.comparePassword(password);
@@ -270,6 +294,8 @@ router.get('/me', protect, async (req, res) => {
             currency: user.currency,
             balance: user.balance,
             isAdmin: user.isAdmin || false,
+            role: user.role || (user.isAdmin ? 'admin' : 'user'), // Only 'admin' or 'user'
+            inviteCode: user.inviteCode || null, // Include inviteCode to distinguish main admin
             subscriptionType: user.subscriptionType,
             subscriptionExpiresAt: user.subscriptionExpiresAt,
             hasActiveSubscription: user.isSubscriptionActive(),
@@ -307,20 +333,30 @@ router.post(
 
       const { email, password } = req.body;
 
+      console.log('Admin login attempt:', { email: email.toLowerCase() });
+
       // Find user by email
       const user = await User.findOne({
         email: email.toLowerCase(),
       });
 
       if (!user) {
+        console.log('Admin login failed: User not found');
         return res.status(401).json({
           success: false,
           message: 'User does not exist',
         });
       }
 
+      console.log('User found:', {
+        email: user.email,
+        isAdmin: user.isAdmin,
+        role: user.role,
+      });
+
       // Check if user is admin
       if (!user.isAdmin) {
+        console.log('Admin login failed: Not an admin');
         return res.status(403).json({
           success: false,
           message: 'Access denied. Admin privileges required.',
@@ -329,12 +365,17 @@ router.post(
 
       // Check password
       const isMatch = await user.comparePassword(password);
+      console.log('Password match:', isMatch);
+      
       if (!isMatch) {
+        console.log('Admin login failed: Wrong password');
         return res.status(401).json({
           success: false,
           message: 'Credentials wrong',
         });
       }
+
+      console.log('Admin login successful:', user.email);
 
       // Update last login
       user.lastLogin = new Date();
@@ -548,8 +589,8 @@ router.put(
   protect,
   [
     body('accountId')
-      .isLength({ min: 8, max: 8 })
-      .withMessage('Account ID must be exactly 8 characters')
+      .isLength({ min: 8, max: 10 })
+      .withMessage('Account ID must be 8 to 10 digits')
       .matches(/^\d+$/)
       .withMessage('Account ID must contain only numbers'),
   ],
@@ -630,6 +671,42 @@ router.get('/stats', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error',
+    });
+  }
+});
+
+// @route   GET /api/1win/auth/invite/:code
+// @desc    Validate invite code
+// @access  Public
+router.get('/invite/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    const inviteCode = code.toUpperCase();
+
+    const admin = await User.findOne({
+      inviteCode,
+      isAdmin: true,
+    });
+
+    if (!admin) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid invite code',
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        inviteCode,
+        adminName: admin.name || admin.email,
+      },
+    });
+  } catch (error) {
+    console.error('Validate invite code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error validating invite code',
     });
   }
 });

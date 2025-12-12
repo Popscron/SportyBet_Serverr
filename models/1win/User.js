@@ -40,6 +40,28 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    role: {
+      type: String,
+      enum: ['admin', 'user'],
+      default: 'user',
+    },
+    inviteCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      uppercase: true,
+      match: [/^[A-Z0-9]{2}$/, 'Invite code must be exactly 2 alphanumeric characters'],
+    },
+    referredBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: '1WinUser',
+      default: null,
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0,
+      comment: 'Total earnings from referrals (for admin users)',
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -71,6 +93,11 @@ const userSchema = new mongoose.Schema(
     minePatternGeneratedAt: {
       type: Date, // When the pattern was generated
       default: null,
+    },
+    registeredFromWebsite: {
+      type: Boolean,
+      default: false,
+      comment: 'True if user registered through the website (1win_web)',
     },
   },
   {

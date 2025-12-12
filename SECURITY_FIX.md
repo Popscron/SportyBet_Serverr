@@ -78,3 +78,4 @@ ADMIN_PASSWORD=your-secure-admin-password
 - [GitHub Secret Scanning](https://docs.github.com/en/code-security/secret-scanning)
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
 
+

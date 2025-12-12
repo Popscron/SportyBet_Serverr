@@ -31,13 +31,14 @@ const cookieParser = require("cookie-parser");
 // Handle preflight requests first
 app.options("*", (req, res) => {
   const origin = req.headers.origin;
-  const allowedOrigins = [
-    "https://admingh.online",
-    "https://www.admingh.online",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-  ];
+      const allowedOrigins = [
+        "https://admingh.online",
+        "https://www.admingh.online",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5177",
+      ];
   
   if (allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin);
@@ -57,6 +58,7 @@ app.use(
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
+        "http://localhost:5177",
       ];
       
       // Allow requests with no origin (like mobile apps, Postman, or Tasker)

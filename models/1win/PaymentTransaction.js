@@ -59,6 +59,22 @@ const paymentTransactionSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    referringAdminId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: '1WinUser',
+      default: null,
+      comment: 'Admin user whose invite code was used',
+    },
+    mainAdminShare: {
+      type: Number,
+      default: 0,
+      comment: '50% share for main admin',
+    },
+    referringAdminShare: {
+      type: Number,
+      default: 0,
+      comment: '50% share for referring admin',
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
