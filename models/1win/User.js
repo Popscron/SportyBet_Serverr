@@ -94,6 +94,10 @@ const userSchema = new mongoose.Schema(
       type: Date, // When the pattern was generated
       default: null,
     },
+    minePatternRevealedSpots: {
+      type: [Number], // Array of 3 safe spot IDs to reveal (0-24 for 5x5 grid)
+      default: null,
+    },
     registeredFromWebsite: {
       type: Boolean,
       default: false,

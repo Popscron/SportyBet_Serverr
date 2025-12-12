@@ -410,7 +410,7 @@ router.post(
 // @access  Private
 router.get('/mine-pattern', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('minePattern minePatternTraps minePatternGeneratedAt subscriptionType subscriptionExpiresAt');
+    const user = await User.findById(req.user._id).select('minePattern minePatternTraps minePatternRevealedSpots minePatternGeneratedAt subscriptionType subscriptionExpiresAt');
     
     if (!user) {
       return res.status(404).json({
@@ -450,6 +450,7 @@ router.get('/mine-pattern', protect, async (req, res) => {
       data: {
         pattern: user.minePattern,
         traps: user.minePatternTraps,
+        revealedSpots: user.minePatternRevealedSpots || [],
         generatedAt: user.minePatternGeneratedAt,
       },
     });
@@ -498,6 +499,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
           data: {
             pattern: user.minePattern,
             traps: user.minePatternTraps,
+            revealedSpots: user.minePatternRevealedSpots || [],
             generatedAt: user.minePatternGeneratedAt,
             message: 'Using existing pattern',
           },
@@ -517,9 +519,15 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
       }
     }
 
-    // Store pattern in user document
+    // Generate revealed safe spots (3 random safe spots)
+    const safeSpots = Array.from({ length: totalTiles }, (_, i) => i).filter(pos => !minePositions.includes(pos));
+    const shuffled = [...safeSpots].sort(() => 0.5 - Math.random());
+    const revealedSpots = shuffled.slice(0, 3);
+
+    // Store pattern and revealed spots in user document
     user.minePattern = minePositions;
     user.minePatternTraps = numTraps;
+    user.minePatternRevealedSpots = revealedSpots;
     user.minePatternGeneratedAt = new Date();
     await user.save();
 
@@ -530,6 +538,7 @@ router.post('/generate-mine-pattern', protect, async (req, res) => {
       data: {
         pattern: minePositions,
         traps: numTraps,
+        revealedSpots: revealedSpots,
         generatedAt: user.minePatternGeneratedAt,
       },
     });
