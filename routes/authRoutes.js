@@ -668,7 +668,7 @@ router.patch("/update-status/:userId", async (req, res) => {
 });
 
 router.post("/update-profile", async (req, res) => {
-  const { userId, name, amount, phone, email, userIcon, darkMode } = req.body;
+  const { userId, name, amount, phone, email, userIcon, darkMode, potentialRewards } = req.body;
 
   try {
     // ✅ Update user basic info
@@ -682,6 +682,11 @@ router.post("/update-profile", async (req, res) => {
     // Add darkMode if provided
     if (darkMode !== undefined) {
       updateData.darkMode = darkMode;
+    }
+    
+    // Add potentialRewards if provided
+    if (potentialRewards !== undefined) {
+      updateData.potentialRewards = potentialRewards;
     }
     
     await User.findByIdAndUpdate(userId, updateData);
