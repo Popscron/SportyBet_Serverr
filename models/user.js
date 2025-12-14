@@ -49,6 +49,12 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    loyaltyProgress: {
+      type: Number,
+      default: 65,
+      min: 0,
+      max: 100,
+    },
   },
   { timestamps: true }
 );
