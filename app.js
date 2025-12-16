@@ -35,14 +35,25 @@ app.options("*", (req, res) => {
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
+        "https://spindict.vercel.app",
+        "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
         "http://localhost:5177",
       ];
   
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
+  // Check if origin matches any allowed origin (including wildcard patterns)
+  const isAllowed = allowedOrigins.some(allowed => {
+    if (allowed.includes('*')) {
+      const pattern = allowed.replace('*', '.*');
+      return new RegExp(`^${pattern}$`).test(origin);
+    }
+    return allowed === origin;
+  });
+  
+  if (isAllowed || !origin) {
+    res.header("Access-Control-Allow-Origin", origin || "*");
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
@@ -56,6 +67,8 @@ app.use(
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
+        "https://spindict.vercel.app",
+        "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -66,7 +79,16 @@ app.use(
       // Tasker sends requests without an origin header, so this allows them through
       if (!origin) return callback(null, true);
       
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      // Check if origin matches any allowed origin (including wildcard patterns)
+      const isAllowed = allowedOrigins.some(allowed => {
+        if (allowed.includes('*')) {
+          const pattern = allowed.replace('*', '.*');
+          return new RegExp(`^${pattern}$`).test(origin);
+        }
+        return allowed === origin;
+      });
+      
+      if (isAllowed) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
@@ -114,6 +136,10 @@ app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
 app.use("/api", maxBonusRoutes);
+
+// Spindict routes
+const spindictRoutes = require("./routes/spindictRoutes");
+app.use("/api/spindict", spindictRoutes);
 
 // 1Win routes - mounted at /api/1win
 const oneWinAuthRoutes = require("./routes/1win/auth");

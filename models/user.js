@@ -55,6 +55,11 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 100,
     },
+    platform: {
+      type: String,
+      enum: ["sportybet", "spindict"],
+      default: "sportybet",
+    },
   },
   { timestamps: true }
 );

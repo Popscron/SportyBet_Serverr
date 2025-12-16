@@ -36,9 +36,12 @@ const allowedOrigins = [
   "https://www.admingh.online",
   "https://1win-web.vercel.app",
   "https://1win-web-*.vercel.app", // Allow all Vercel preview deployments
+  "https://spindict.vercel.app",
+  "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
+  "http://localhost:5177",
   "http://localhost:5008",
 ];
 
@@ -155,6 +158,10 @@ app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
+
+// Spindict routes
+const spindictRoutes = require("../routes/spindictRoutes");
+app.use("/api/spindict", spindictRoutes);
 
 // 1Win routes - mounted at /api/1win
 const oneWinAuthRoutes = require("../routes/1win/auth");
