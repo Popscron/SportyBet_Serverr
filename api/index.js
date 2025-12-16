@@ -36,6 +36,8 @@ const allowedOrigins = [
   "https://www.admingh.online",
   "https://1win-web.vercel.app",
   "https://1win-web-*.vercel.app", // Allow all Vercel preview deployments
+  "https://spindict.com",
+  "https://www.spindict.com",
   "https://spindict.vercel.app",
   "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
   "http://localhost:5173",
