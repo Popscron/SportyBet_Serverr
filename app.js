@@ -24,6 +24,7 @@ const BookingRoutes = require("./routes/BookingRoute.js");
 const notification = require("./routes/notification.js");
 const manualCardRoutes = require("./routes/manualCardRoute.js");
 const spinBottleRoutes = require("./routes/spinBottleRoute.js");
+const maxBonusRoutes = require("./routes/maxBonusRoute.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
@@ -112,6 +113,7 @@ app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
+app.use("/api", maxBonusRoutes);
 
 // 1Win routes - mounted at /api/1win
 const oneWinAuthRoutes = require("./routes/1win/auth");
