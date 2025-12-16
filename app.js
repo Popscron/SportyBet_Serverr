@@ -35,6 +35,8 @@ app.options("*", (req, res) => {
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
+        "https://spindict.com",
+        "https://www.spindict.com",
         "https://spindict.vercel.app",
         "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "http://localhost:5173",
@@ -67,6 +69,8 @@ app.use(
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
+        "https://spindict.com",
+        "https://www.spindict.com",
         "https://spindict.vercel.app",
         "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "http://localhost:5173",
