@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const User = require("../models/user");
+const SpindictUser = require("../models/SpindictUser");
 require("dotenv").config();
 
 // Use the same MongoDB connection as the backend
@@ -17,21 +17,20 @@ async function createDemoAccounts() {
     const adminHashedPassword = await bcrypt.hash(adminPassword, 10);
 
     // Demo User Account
-    const userEmail = "user@spindict.com";
+    const userEmail = "User@spindict.com";
     const userPassword = "user123";
     const userHashedPassword = await bcrypt.hash(userPassword, 10);
 
     // Check if admin already exists
-    let admin = await User.findOne({ email: adminEmail });
+    let admin = await SpindictUser.findOne({ email: adminEmail });
     if (admin) {
       console.log("Admin account already exists. Updating password and role...");
       admin.password = adminHashedPassword;
       admin.role = "admin";
-      admin.platform = "spindict";
       await admin.save();
       console.log("✅ Admin account updated!");
     } else {
-      admin = new User({
+      admin = new SpindictUser({
         name: "Admin User",
         email: adminEmail,
         username: "admin",
@@ -42,23 +41,30 @@ async function createDemoAccounts() {
         expiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year from now
         expiryPeriod: "1 Year",
         accountStatus: "Active",
-        platform: "spindict",
       });
       await admin.save();
       console.log("✅ Admin account created!");
     }
 
-    // Check if user already exists
-    let user = await User.findOne({ email: userEmail });
+    // Check if user already exists (by email or mobile number)
+    let user = await SpindictUser.findOne({ 
+      $or: [
+        { email: userEmail },
+        { mobileNumber: "0987654321" }
+      ]
+    });
     if (user) {
-      console.log("User account already exists. Updating password...");
+      console.log("User account already exists. Updating password and details...");
+      user.email = userEmail;
       user.password = userHashedPassword;
       user.role = "user";
-      user.platform = "spindict";
+      user.mobileNumber = "0987654321";
+      user.username = "demo_user";
+      user.name = "Demo User";
       await user.save();
       console.log("✅ User account updated!");
     } else {
-      user = new User({
+      user = new SpindictUser({
         name: "Demo User",
         email: userEmail,
         username: "demo_user",
@@ -69,7 +75,6 @@ async function createDemoAccounts() {
         expiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
         expiryPeriod: "1 Month",
         accountStatus: "Active",
-        platform: "spindict",
       });
       await user.save();
       console.log("✅ User account created!");
@@ -84,7 +89,7 @@ async function createDemoAccounts() {
     console.log("   Mobile: 1234567890");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("👤 USER ACCOUNT:");
-    console.log("   Email: user@spindict.com");
+    console.log("   Email: User@spindict.com");
     console.log("   Password: user123");
     console.log("   Username: demo_user");
     console.log("   Mobile: 0987654321");

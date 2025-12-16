@@ -1,14 +1,80 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const SpindictTransaction = require('../models/SpindictTransaction');
-const User = require('../models/user');
-const authMiddleware = require('../middleware/authMiddleware');
+const SpindictUser = require('../models/SpindictUser');
+const spindictAuthMiddleware = require('../middleware/spindictAuthMiddleware');
+const SECRET_KEY = "your_secret_key";
+
+// Spindict Login Route
+router.post('/login', async (req, res) => {
+  const { identifier, password } = req.body; // identifier can be email, username, or mobile number
+
+  if (!identifier || !password) {
+    return res.status(400).json({ success: false, message: "Both fields are required" });
+  }
+
+  try {
+    // Try finding user by email, username, or mobileNumber
+    const user = await SpindictUser.findOne({
+      $or: [
+        { email: identifier.toLowerCase() },
+        { username: identifier },
+        { mobileNumber: identifier },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Verify password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // Check if account is active
+    if (user.accountStatus !== 'Active') {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Account is not active. Please contact support." 
+      });
+    }
+
+    // Generate JWT
+    const token = jwt.sign({ id: user._id, email: user.email }, SECRET_KEY, {
+      expiresIn: "7d",
+    });
+
+    // Return user data (without password)
+    const userData = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      subscription: user.subscription,
+      accountStatus: user.accountStatus,
+    };
+
+    res.json({
+      success: true,
+      token,
+      user: userData,
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
 
 // Admin middleware
 const adminProtect = async (req, res, next) => {
   try {
     // First verify auth
-    await authMiddleware(req, res, () => {});
+    await spindictAuthMiddleware(req, res, () => {});
     
     // Then check if admin
     if (req.user.role !== 'admin') {
@@ -55,7 +121,7 @@ router.post('/transactions', authMiddleware, async (req, res) => {
 // @route   GET /api/spindict/transactions
 // @desc    Get user's transactions
 // @access  Private
-router.get('/transactions', authMiddleware, async (req, res) => {
+router.get('/transactions', spindictAuthMiddleware, async (req, res) => {
   try {
     const transactions = await SpindictTransaction.find({ user: req.user._id })
       .sort({ createdAt: -1 })
@@ -137,8 +203,8 @@ router.get('/admin/paid-users', adminProtect, async (req, res) => {
       status: 'completed',
     });
 
-    const paidUsers = await User.find({ _id: { $in: paidUserIds } })
-      .select('-password -token')
+    const paidUsers = await SpindictUser.find({ _id: { $in: paidUserIds } })
+      .select('-password')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -158,18 +224,13 @@ router.get('/admin/paid-users', adminProtect, async (req, res) => {
 router.get('/admin/statistics', adminProtect, async (req, res) => {
   try {
     // Total registered users (Spindict only)
-    const totalUsers = await User.countDocuments({ platform: 'spindict' });
+    const totalUsers = await SpindictUser.countDocuments({});
 
     // Total paid users (users with at least one completed transaction) - Spindict only
     const paidUserIds = await SpindictTransaction.distinct('user', {
       status: 'completed',
     });
-    // Filter to only count spindict users
-    const spindictPaidUserIds = await User.find({
-      _id: { $in: paidUserIds },
-      platform: 'spindict'
-    }).distinct('_id');
-    const totalPaidUsers = spindictPaidUserIds.length;
+    const totalPaidUsers = paidUserIds.length;
 
     // Total revenue (sum of all completed transactions)
     const revenueResult = await SpindictTransaction.aggregate([
