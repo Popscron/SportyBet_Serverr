@@ -6,23 +6,42 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
-// Suppress Mongoose duplicate schema warnings in serverless environments
-// This warning is expected when modules are cached/reused in serverless
+// Suppress Mongoose duplicate schema/index warnings in serverless environments
+// These warnings are expected when modules are cached/reused in serverless
 const originalWarn = process.emitWarning;
 process.emitWarning = function(warning, ...args) {
-  if (typeof warning === 'string' && warning.includes('Duplicate sc')) {
-    return; // Suppress duplicate schema warnings
+  const warningStr = typeof warning === 'string' ? warning : String(warning);
+  if (warningStr.includes('Duplicate sc') || 
+      warningStr.includes('Duplicate schema index') ||
+      (warningStr.includes('MONGOOSE') && warningStr.includes('Duplicate'))) {
+    return; // Suppress duplicate schema/index warnings
   }
   return originalWarn.apply(process, [warning, ...args]);
 };
 
-// Also suppress console.warn for Mongoose duplicate schema messages
+// Also suppress console.warn for Mongoose duplicate schema/index messages
 const originalConsoleWarn = console.warn;
 console.warn = function(...args) {
-  if (args[0] && typeof args[0] === 'string' && args[0].includes('Duplicate sc')) {
-    return; // Suppress duplicate schema warnings
+  const firstArg = args[0];
+  const warningStr = typeof firstArg === 'string' ? firstArg : String(firstArg || '');
+  if (warningStr.includes('Duplicate sc') || 
+      warningStr.includes('Duplicate schema index') ||
+      (warningStr.includes('MONGOOSE') && warningStr.includes('Duplicate'))) {
+    return; // Suppress duplicate schema/index warnings
   }
   return originalConsoleWarn.apply(console, args);
+};
+
+// Also suppress stderr for Mongoose warnings
+const originalStderrWrite = process.stderr.write;
+process.stderr.write = function(chunk, encoding, fd) {
+  if (typeof chunk === 'string' && 
+      (chunk.includes('Duplicate sc') || 
+       chunk.includes('Duplicate schema index') ||
+       (chunk.includes('MONGOOSE') && chunk.includes('Duplicate')))) {
+    return true; // Suppress duplicate schema/index warnings
+  }
+  return originalStderrWrite.apply(process.stderr, arguments);
 };
 
 // Configure Mongoose for serverless environments
@@ -332,6 +351,15 @@ function connectMongoDB() {
   
   return mongoConnectionPromise;
 }
+
+// Handle favicon requests to prevent 500 errors
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end(); // No Content
+});
+
+app.get("/favicon.png", (req, res) => {
+  res.status(204).end(); // No Content
+});
 
 // Root route - API information
 app.get("/", (req, res) => {

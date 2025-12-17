@@ -89,7 +89,7 @@ const adminProtect = async (req, res, next) => {
 // @route   POST /api/spindict/transactions
 // @desc    Create a new transaction (when user selects package)
 // @access  Private
-router.post('/transactions', authMiddleware, async (req, res) => {
+router.post('/transactions', spindictAuthMiddleware, async (req, res) => {
   try {
     const { amount, packageType, paymentMethod } = req.body;
 
@@ -306,6 +306,7 @@ router.get('/admin/transactions', adminProtect, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 

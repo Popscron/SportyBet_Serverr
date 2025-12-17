@@ -13,18 +13,21 @@ const spindictUserSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      // unique: true already creates an index, so don't add schema.index() for this
     },
     username: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
+      // unique: true already creates an index, so don't add schema.index() for this
     },
     mobileNumber: {
       type: String,
       unique: true,
       sparse: true,
       trim: true,
+      // unique: true already creates an index, so don't add schema.index() for this
     },
     password: {
       type: String,
@@ -57,9 +60,8 @@ const spindictUserSchema = new mongoose.Schema(
 );
 
 // Indexes for better query performance
-spindictUserSchema.index({ email: 1 });
-spindictUserSchema.index({ username: 1 });
-spindictUserSchema.index({ mobileNumber: 1 });
+// Note: email, username, and mobileNumber already have indexes from unique: true
+// Only add index for role since it doesn't have unique constraint
 spindictUserSchema.index({ role: 1 });
 
 // Prevent duplicate model registration in serverless environments
