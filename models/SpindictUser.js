@@ -62,7 +62,9 @@ spindictUserSchema.index({ username: 1 });
 spindictUserSchema.index({ mobileNumber: 1 });
 spindictUserSchema.index({ role: 1 });
 
-module.exports = mongoose.model("SpindictUser", spindictUserSchema);
+// Prevent duplicate model registration in serverless environments
+module.exports = mongoose.models.SpindictUser || mongoose.model("SpindictUser", spindictUserSchema);
+
 
 
 

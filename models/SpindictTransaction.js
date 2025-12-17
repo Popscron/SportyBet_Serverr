@@ -39,7 +39,9 @@ spindictTransactionSchema.index({ user: 1, createdAt: -1 });
 spindictTransactionSchema.index({ status: 1 });
 spindictTransactionSchema.index({ packageType: 1 });
 
-module.exports = mongoose.model('SpindictTransaction', spindictTransactionSchema);
+// Prevent duplicate model registration in serverless environments
+module.exports = mongoose.models.SpindictTransaction || mongoose.model('SpindictTransaction', spindictTransactionSchema);
+
 
 
 

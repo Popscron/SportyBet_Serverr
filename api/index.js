@@ -6,6 +6,13 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
+// Configure Mongoose for serverless environments
+// Suppress duplicate schema warnings (expected in serverless when modules are reused)
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  mongoose.set('strictQuery', false);
+  // The duplicate schema warning is harmless in serverless - models check for existing models
+}
+
 const app = express();
 
 // Import routes
@@ -361,16 +368,31 @@ app.get("/health", async (req, res) => {
 // Export the Express app as a serverless function for Vercel
 // Vercel expects a handler function that receives (req, res)
 module.exports = async (req, res) => {
-  // Ensure MongoDB is connected before handling request
-  if (mongoose.connection.readyState === 0) {
-    try {
-      await connectMongoDB();
-    } catch (error) {
-      console.error('MongoDB connection error:', error.message);
+  try {
+    // Ensure MongoDB is connected before handling request
+    if (mongoose.connection.readyState === 0) {
+      try {
+        await connectMongoDB();
+      } catch (error) {
+        console.error('MongoDB connection error:', error.message);
+        // Don't fail the request if DB connection fails - some routes don't need DB
+      }
+    }
+    
+    // Handle the request with Express app
+    return app(req, res);
+  } catch (error) {
+    // Catch any unhandled errors to prevent 500 crashes
+    console.error('Serverless function error:', error);
+    
+    // If response hasn't been sent, send error response
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred'
+      });
     }
   }
-  
-  // Handle the request with Express app
-  return app(req, res);
 };
 

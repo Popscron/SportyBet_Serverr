@@ -64,4 +64,5 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("User", userSchema);
+// Prevent duplicate model registration in serverless environments
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);
