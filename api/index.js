@@ -6,12 +6,27 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
+// Suppress Mongoose duplicate schema warnings in serverless environments
+// This warning is expected when modules are cached/reused in serverless
+const originalWarn = process.emitWarning;
+process.emitWarning = function(warning, ...args) {
+  if (typeof warning === 'string' && warning.includes('Duplicate sc')) {
+    return; // Suppress duplicate schema warnings
+  }
+  return originalWarn.apply(process, [warning, ...args]);
+};
+
+// Also suppress console.warn for Mongoose duplicate schema messages
+const originalConsoleWarn = console.warn;
+console.warn = function(...args) {
+  if (args[0] && typeof args[0] === 'string' && args[0].includes('Duplicate sc')) {
+    return; // Suppress duplicate schema warnings
+  }
+  return originalConsoleWarn.apply(console, args);
+};
+
 // Configure Mongoose for serverless environments
-// Suppress duplicate schema warnings (expected in serverless when modules are reused)
-if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  mongoose.set('strictQuery', false);
-  // The duplicate schema warning is harmless in serverless - models check for existing models
-}
+mongoose.set('strictQuery', false);
 
 const app = express();
 
@@ -320,24 +335,33 @@ function connectMongoDB() {
 
 // Root route - API information
 app.get("/", (req, res) => {
-  res.json({
-    success: true,
-    message: "1Win Server API",
-    version: "1.0.0",
-    endpoints: {
-      auth: "/api/auth",
-      "1win-auth": "/api/1win/auth",
-      "1win-admin": "/api/1win/admin",
-      "1win-payments": "/api/1win/payments",
-      games: "/api/games",
-      wallet: "/api/wallet",
-      promo: "/api/promo",
-      content: "/api/content",
-      admin: "/api/admin",
-      health: "/health",
-    },
-    timestamp: new Date().toISOString(),
-  });
+  try {
+    res.json({
+      success: true,
+      message: "1Win Server API",
+      version: "1.0.0",
+      endpoints: {
+        auth: "/api/auth",
+        "1win-auth": "/api/1win/auth",
+        "1win-admin": "/api/1win/admin",
+        "1win-payments": "/api/1win/payments",
+        games: "/api/games",
+        wallet: "/api/wallet",
+        promo: "/api/promo",
+        content: "/api/content",
+        admin: "/api/admin",
+        health: "/health",
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Root route error:', error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message
+    });
+  }
 });
 
 // Health check
