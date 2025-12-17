@@ -47,8 +47,16 @@ const allowedOrigins = [
   "http://localhost:5008",
 ];
 
+// Handle OPTIONS preflight requests - MUST be before CORS middleware
 app.options("*", (req, res) => {
   const origin = req.headers.origin;
+  
+  console.log('OPTIONS preflight request:', {
+    origin,
+    path: req.path,
+    url: req.url,
+    method: req.method
+  });
   
   // Check if origin matches any allowed origin (including wildcard patterns)
   const isAllowed = allowedOrigins.some(allowed => {
@@ -59,28 +67,34 @@ app.options("*", (req, res) => {
     return allowed === origin;
   });
   
-  // Set CORS headers if origin is allowed
-  if (origin && isAllowed) {
+  console.log('Origin check:', {
+    origin,
+    isAllowed,
+    allowedOrigins
+  });
+  
+  // ALWAYS set CORS headers for OPTIONS requests to prevent browser errors
+  if (origin) {
+    // If allowed, use the origin; otherwise still set it (for debugging/production flexibility)
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Credentials", "true");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
     res.header("Access-Control-Max-Age", "86400"); // 24 hours
-  } else if (!origin) {
+    
+    if (!isAllowed) {
+      console.warn(`⚠️ CORS: Origin ${origin} not in allowed list but allowing anyway`);
+    } else {
+      console.log(`✅ CORS: Allowing origin ${origin}`);
+    }
+  } else {
     // No origin header (e.g., mobile app, Postman)
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
-  } else {
-    // Origin not allowed - log for debugging but still send headers to prevent browser errors
-    console.warn(`CORS: Origin not allowed: ${origin}`);
-    res.header("Access-Control-Allow-Origin", origin); // Still allow for development debugging
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
   }
   
-  res.sendStatus(200);
+  return res.sendStatus(200);
 });
 
 app.use(
@@ -115,6 +129,30 @@ app.use(
     optionsSuccessStatus: 200,
   })
 );
+
+// Additional CORS middleware to ensure headers are always set on responses
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // If there's an origin header, always set CORS headers
+  if (origin) {
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (allowed.includes('*')) {
+        const pattern = allowed.replace('*', '.*');
+        return new RegExp(`^${pattern}$`).test(origin);
+      }
+      return allowed === origin;
+    });
+    
+    // Always set headers if origin is present (especially for production origins)
+    if (isAllowed || origin.includes('spindict.com') || origin.includes('localhost')) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+    }
+  }
+  
+  next();
+});
 
 // Middleware for parsing JSON
 app.use(express.json());
