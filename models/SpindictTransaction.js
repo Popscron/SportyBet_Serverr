@@ -40,3 +40,7 @@ spindictTransactionSchema.index({ status: 1 });
 spindictTransactionSchema.index({ packageType: 1 });
 
 module.exports = mongoose.model('SpindictTransaction', spindictTransactionSchema);
+
+
+
+

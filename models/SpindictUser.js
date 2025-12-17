@@ -63,3 +63,7 @@ spindictUserSchema.index({ mobileNumber: 1 });
 spindictUserSchema.index({ role: 1 });
 
 module.exports = mongoose.model("SpindictUser", spindictUserSchema);
+
+
+
+

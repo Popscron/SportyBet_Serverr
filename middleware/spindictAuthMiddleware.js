@@ -22,3 +22,7 @@ const spindictAuthMiddleware = async (req, res, next) => {
 };
 
 module.exports = spindictAuthMiddleware;
+
+
+
+
