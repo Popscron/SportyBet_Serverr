@@ -49,76 +49,66 @@ const allowedOrigins = [
 
 // Handle OPTIONS preflight requests - MUST be before CORS middleware
 app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  
-  console.log('OPTIONS preflight request:', {
-    origin,
-    path: req.path,
-    url: req.url,
-    method: req.method
-  });
-  
-  // Check if origin matches any allowed origin (including wildcard patterns)
-  const isAllowed = allowedOrigins.some(allowed => {
-    if (allowed.includes('*')) {
-      const pattern = allowed.replace('*', '.*');
-      return new RegExp(`^${pattern}$`).test(origin);
-    }
-    return allowed === origin;
-  });
-  
-  console.log('Origin check:', {
-    origin,
-    isAllowed,
-    allowedOrigins
-  });
-  
-  // ALWAYS set CORS headers for OPTIONS requests to prevent browser errors
-  if (origin) {
-    // If allowed, use the origin; otherwise still set it (for debugging/production flexibility)
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
-    res.header("Access-Control-Max-Age", "86400"); // 24 hours
+  try {
+    const origin = req.headers.origin;
     
-    if (!isAllowed) {
-      console.warn(`⚠️ CORS: Origin ${origin} not in allowed list but allowing anyway`);
+    // ALWAYS set CORS headers for OPTIONS requests to prevent browser errors
+    if (origin) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+      res.header("Access-Control-Max-Age", "86400"); // 24 hours
     } else {
-      console.log(`✅ CORS: Allowing origin ${origin}`);
+      // No origin header (e.g., mobile app, Postman)
+      res.header("Access-Control-Allow-Origin", "*");
+      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
     }
-  } else {
-    // No origin header (e.g., mobile app, Postman)
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin");
+    
+    return res.sendStatus(200);
+  } catch (error) {
+    console.error('OPTIONS handler error:', error);
+    // Still send 200 to prevent browser errors
+    return res.sendStatus(200);
   }
-  
-  return res.sendStatus(200);
 });
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, Postman, or Tasker)
-      if (!origin) return callback(null, true);
-      
-      // Check if origin matches any allowed origin (including wildcard patterns)
-      const isAllowed = allowedOrigins.some(allowed => {
-        if (allowed.includes('*')) {
-          const pattern = allowed.replace('*', '.*');
-          return new RegExp(`^${pattern}$`).test(origin);
+      try {
+        // Allow requests with no origin (like mobile apps, Postman, or Tasker)
+        if (!origin) return callback(null, true);
+        
+        // Check if origin matches any allowed origin (including wildcard patterns)
+        const isAllowed = allowedOrigins.some(allowed => {
+          try {
+            if (allowed.includes('*')) {
+              const pattern = allowed.replace('*', '.*');
+              return new RegExp(`^${pattern}$`).test(origin);
+            }
+            return allowed === origin;
+          } catch (e) {
+            return false;
+          }
+        });
+        
+        if (isAllowed) {
+          callback(null, true);
+        } else {
+          // For production, allow spindict.com and other known origins
+          if (origin.includes('spindict.com') || origin.includes('localhost')) {
+            callback(null, true);
+          } else {
+            console.warn(`CORS blocked origin: ${origin}`);
+            callback(null, true); // Allow for now to prevent blocking
+          }
         }
-        return allowed === origin;
-      });
-      
-      if (isAllowed) {
+      } catch (error) {
+        console.error('CORS origin check error:', error);
+        // On error, allow the request to prevent blocking
         callback(null, true);
-      } else {
-        console.warn(`CORS blocked origin: ${origin}`);
-        // For development, still allow but log warning
-        // In production, you may want to be stricter
-        callback(null, true); // Allow for now to prevent blocking during development
       }
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -132,23 +122,32 @@ app.use(
 
 // Additional CORS middleware to ensure headers are always set on responses
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  // If there's an origin header, always set CORS headers
-  if (origin) {
-    const isAllowed = allowedOrigins.some(allowed => {
-      if (allowed.includes('*')) {
-        const pattern = allowed.replace('*', '.*');
-        return new RegExp(`^${pattern}$`).test(origin);
-      }
-      return allowed === origin;
-    });
+  try {
+    const origin = req.headers.origin;
     
-    // Always set headers if origin is present (especially for production origins)
-    if (isAllowed || origin.includes('spindict.com') || origin.includes('localhost')) {
-      res.header("Access-Control-Allow-Origin", origin);
-      res.header("Access-Control-Allow-Credentials", "true");
+    // If there's an origin header, always set CORS headers
+    if (origin && typeof origin === 'string') {
+      const isAllowed = allowedOrigins.some(allowed => {
+        try {
+          if (allowed.includes('*')) {
+            const pattern = allowed.replace('*', '.*');
+            return new RegExp(`^${pattern}$`).test(origin);
+          }
+          return allowed === origin;
+        } catch (e) {
+          return false;
+        }
+      });
+      
+      // Always set headers if origin is present (especially for production origins)
+      if (isAllowed || origin.includes('spindict.com') || origin.includes('localhost')) {
+        res.header("Access-Control-Allow-Origin", origin);
+        res.header("Access-Control-Allow-Credentials", "true");
+      }
     }
+  } catch (error) {
+    console.error('CORS middleware error:', error);
+    // Continue anyway - don't block the request
   }
   
   next();
