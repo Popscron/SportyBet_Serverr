@@ -29,6 +29,7 @@ const BookingRoutes = require("../routes/BookingRoute.js");
 const notification = require("../routes/notification.js");
 const manualCardRoutes = require("../routes/manualCardRoute.js");
 const spinBottleRoutes = require("../routes/spinBottleRoute.js");
+const sportyHeroRoutes = require("../routes/sportyHeroRoute.js");
 
 // CORS configuration
 const allowedOrigins = [
@@ -160,6 +161,7 @@ app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
+app.use("/api", sportyHeroRoutes);
 
 // Spindict routes
 const spindictRoutes = require("../routes/spindictRoutes");

@@ -25,6 +25,7 @@ const notification = require("./routes/notification.js");
 const manualCardRoutes = require("./routes/manualCardRoute.js");
 const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const maxBonusRoutes = require("./routes/maxBonusRoute.js");
+const sportyHeroRoutes = require("./routes/sportyHeroRoute");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
@@ -139,6 +140,7 @@ app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
+app.use("/api", sportyHeroRoutes);
 app.use("/api", maxBonusRoutes);
 
 // Spindict routes
