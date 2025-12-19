@@ -30,7 +30,8 @@
     "dev": "nodemon app.js",
     "vercel-build": "echo 'Build complete'",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "create-demo": "node scripts/createDemoAccounts.js"
+    "create-demo": "node scripts/createDemoAccounts.js",
+    "check-accounts": "node scripts/checkSpindictAccounts.js"
   },
   "author": "",
   "license": "ISC",
