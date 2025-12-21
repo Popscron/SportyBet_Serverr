@@ -2,18 +2,20 @@ const express = require("express");
 const router = express.Router();
 const VerifyModel = require('../models/verifycode')
 const bet =require("../models/bet")
+const UserBalance = require("../models/UserBalance")
 
-// Generate verify code: GH + 15 characters (mix of uppercase letters and numbers)
+// Generate verify code: GH/NG + 15 characters (mix of uppercase letters and numbers)
 // Total length: 17 characters, with 4-7 numbers in the entire code
-const generateVerifyCode = () => {
+const generateVerifyCode = (currencyType = "GHS") => {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const numbers = '0123456789';
     
     // Random number between 4 and 7 for how many numbers we need
     const numCount = Math.floor(Math.random() * 4) + 4; // 4, 5, 6, or 7
     
-    // Start with "GH"
-    let code = 'GH';
+    // Start with "GH" for GHS, "NG" for NGN
+    const prefix = currencyType === "NGN" ? "NG" : "GH";
+    let code = prefix;
     
     // Create array of 15 positions
     const positions = Array(15).fill(null);
@@ -47,15 +49,25 @@ router.get("/verify-code/:betId", async (req, res) => {
         if (verifyData) {
             res.json(verifyData);
         } else {
+            // Get user's currency from their balance
+            const betData = await bet.findById(betId);
+            if (!betData) {
+                return res.status(404).json({ error: "Bet not found" });
+            }
+
+            // Get user's currency type from their balance
+            const userBalance = await UserBalance.findOne({ userId: betData.userId });
+            const currencyType = userBalance?.currencyType || "GHS";
+
             // Auto-generate and save verify code
             let generatedCode;
             let isUnique = false;
             let attempts = 0;
             const maxAttempts = 10;
             
-            // Generate unique code
+            // Generate unique code with user's currency
             while (!isUnique && attempts < maxAttempts) {
-                generatedCode = generateVerifyCode();
+                generatedCode = generateVerifyCode(currencyType);
                 const existingCode = await VerifyModel.findOne({ verifyCode: generatedCode });
                 if (!existingCode) {
                     isUnique = true;
