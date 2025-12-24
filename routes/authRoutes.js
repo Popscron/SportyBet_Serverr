@@ -245,37 +245,41 @@ router.post("/login", async (req, res) => {
                            (!user.expiry || new Date(user.expiry) > new Date());
           const maxDevices = isPremium ? 2 : 1;
 
-          // Count active devices
+          // Count active devices (excluding the current device being added)
           const activeDevices = await Device.find({
             userId: user._id,
             isActive: true,
           });
 
+          // Check if user has reached the device limit
           if (activeDevices.length >= maxDevices) {
-            // If Premium user has 2 devices and trying to add a 3rd, deactivate oldest
-            if (isPremium && activeDevices.length >= 2) {
-              const oldestDevice = await Device.findOne({
-                userId: user._id,
-                isActive: true,
-              }).sort({ lastLoginAt: 1 }); // Sort by oldest login
-
-              if (oldestDevice) {
-                await Device.findByIdAndUpdate(oldestDevice._id, {
-                  isActive: false,
-                });
-              }
-            } else if (!isPremium && activeDevices.length >= 1) {
-              // If Basic user and trying to login on second device, reject login
+            // If Basic user, reject login on second device
+            if (!isPremium) {
               return res.status(403).json({
                 success: false,
                 message: "Basic accounts can only be logged in on one device at a time. Please logout from your other device or upgrade to Premium to use multiple devices.",
                 requiresUpgrade: true,
               });
             }
+            
+            // If Premium user has exactly 2 active devices and trying to add a 3rd, deactivate the oldest one
+            if (isPremium && activeDevices.length === 2) {
+              const oldestDevice = await Device.findOne({
+                userId: user._id,
+                isActive: true,
+              }).sort({ lastLoginAt: 1 }); // Sort by oldest login time
+
+              if (oldestDevice) {
+                await Device.findByIdAndUpdate(oldestDevice._id, {
+                  isActive: false,
+                });
+              }
+            }
           }
 
-          // Create new device
+          // Create new device (allowed if within limit or after deactivating oldest)
           await Device.create(deviceData);
+          console.log(`[Login] Premium user login - Active devices: ${activeDevices.length}, Max: ${maxDevices}, New device created`);
         }
       } catch (deviceError) {
         console.error("Device tracking error:", deviceError);
