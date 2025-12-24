@@ -240,6 +240,40 @@ router.post("/login", async (req, res) => {
             ...deviceData,
           });
         } else {
+          // Check user subscription type and expiry
+          const isPremium = user.subscription === "Premium" && 
+                           (!user.expiry || new Date(user.expiry) > new Date());
+          const maxDevices = isPremium ? 2 : 1;
+
+          // Count active devices
+          const activeDevices = await Device.find({
+            userId: user._id,
+            isActive: true,
+          });
+
+          if (activeDevices.length >= maxDevices) {
+            // If Premium user has 2 devices and trying to add a 3rd, deactivate oldest
+            if (isPremium && activeDevices.length >= 2) {
+              const oldestDevice = await Device.findOne({
+                userId: user._id,
+                isActive: true,
+              }).sort({ lastLoginAt: 1 }); // Sort by oldest login
+
+              if (oldestDevice) {
+                await Device.findByIdAndUpdate(oldestDevice._id, {
+                  isActive: false,
+                });
+              }
+            } else if (!isPremium && activeDevices.length >= 1) {
+              // If Basic user and trying to login on second device, reject login
+              return res.status(403).json({
+                success: false,
+                message: "Basic accounts can only be logged in on one device at a time. Please logout from your other device or upgrade to Premium to use multiple devices.",
+                requiresUpgrade: true,
+              });
+            }
+          }
+
           // Create new device
           await Device.create(deviceData);
         }
