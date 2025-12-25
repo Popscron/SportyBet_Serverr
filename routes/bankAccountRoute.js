@@ -39,12 +39,12 @@ router.get("/bank-accounts/:userId", async (req, res) => {
 // ============================
 router.post("/bank-accounts", async (req, res) => {
   try {
-    const { userId, name, accountName, accountNumber, tradeNo, isDefault } = req.body;
+    const { userId, name, accountName, accountNumber, isDefault } = req.body;
 
-    if (!userId || !name || !accountName || !accountNumber || !tradeNo) {
+    if (!userId || !name || !accountName || !accountNumber) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields: userId, name, accountName, accountNumber, tradeNo",
+        message: "Missing required fields: userId, name, accountName, accountNumber",
       });
     }
 
@@ -72,7 +72,6 @@ router.post("/bank-accounts", async (req, res) => {
       name,
       accountName,
       accountNumber,
-      tradeNo,
       isDefault: shouldBeDefault,
     });
 
@@ -96,7 +95,7 @@ router.post("/bank-accounts", async (req, res) => {
 router.put("/bank-accounts/:accountId", async (req, res) => {
   try {
     const { accountId } = req.params;
-    const { userId, name, accountName, accountNumber, tradeNo, isDefault } = req.body;
+    const { userId, name, accountName, accountNumber, isDefault } = req.body;
 
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
@@ -121,7 +120,6 @@ router.put("/bank-accounts/:accountId", async (req, res) => {
     account.name = name || account.name;
     account.accountName = accountName || account.accountName;
     account.accountNumber = accountNumber || account.accountNumber;
-    account.tradeNo = tradeNo || account.tradeNo;
     if (isDefault !== undefined) {
       account.isDefault = isDefault;
     }
@@ -204,7 +202,6 @@ router.post("/bank-accounts/sync", async (req, res) => {
       name: acc.name,
       accountName: acc.accountName,
       accountNumber: acc.accountNumber,
-      tradeNo: acc.tradeNo,
       isDefault: acc.isDefault || false,
     }));
 
