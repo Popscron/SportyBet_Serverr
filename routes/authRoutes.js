@@ -484,13 +484,33 @@ router.get("/auth/me", (req, res) => {
   }
 });
 
-router.post("/auth/logout", (req, res) => {
-  res.clearCookie("sportybetToken", {
-    httpOnly: true,
-    sameSite: "none",
-    secure: true,
-  });
-  res.status(200).json({ success: true, message: "Logout Successfully" });
+router.post("/auth/logout", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const deviceId = req.body.deviceId || req.headers['x-device-id'];
+    
+    // Deactivate the device if deviceId is provided
+    if (deviceId) {
+      await Device.findOneAndUpdate(
+        { userId, deviceId, isActive: true },
+        { isActive: false, lastLogoutAt: new Date() }
+      );
+    }
+
+    // Clear token from user document
+    await User.findByIdAndUpdate(userId, { token: null });
+
+    res.clearCookie("sportybetToken", {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+    });
+    
+    res.status(200).json({ success: true, message: "Logout Successfully" });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(200).json({ success: true, message: "Logout Successfully" }); // Still return success even if device deactivation fails
+  }
 });
 
 router.get("/admin/getAllUsers", async (req, res) => {

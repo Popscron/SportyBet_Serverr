@@ -44,6 +44,9 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    lastLogoutAt: {
+      type: Date,
+    },
     loginCount: {
       type: Number,
       default: 1,
