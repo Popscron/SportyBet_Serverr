@@ -15,6 +15,12 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    modelName: {
+      type: String,
+    },
+    modelId: {
+      type: String, // e.g., "iPhone15,2" for iPhone 14 Pro
+    },
     deviceType: {
       type: String,
       enum: ["mobile", "tablet", "desktop", "unknown"],
