@@ -39,6 +39,11 @@ const SpinBottleBetSchema = new mongoose.Schema({
     type: String,
     default: "NGN",
   },
+  betCode: {
+    type: String,
+    required: false,
+    sparse: true, // Allows multiple null/undefined values
+  },
   createdAt: {
     type: Date,
     default: Date.now,
