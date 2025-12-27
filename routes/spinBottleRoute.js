@@ -15,6 +15,11 @@ const generateResult = () => {
   return random < 0.5 ? "up" : "down";
 };
 
+// Generate a unique 5-digit bet code
+const generateBetCode = () => {
+  return Math.floor(10000 + Math.random() * 90000).toString();
+};
+
 // GET /api/spin-bottle/result - Get the upcoming result
 router.get("/spin-bottle/result", async (req, res) => {
   try {
@@ -115,6 +120,17 @@ router.post("/spin-bottle/bet", async (req, res) => {
     // Determine status
     const status = betDirection === result ? "won" : "lost";
 
+    // Generate unique 5-digit bet code
+    let betCode;
+    let isUnique = false;
+    while (!isUnique) {
+      betCode = generateBetCode();
+      const existingBet = await SpinBottleBet.findOne({ betCode });
+      if (!existingBet) {
+        isUnique = true;
+      }
+    }
+
     // Create bet record
     const bet = new SpinBottleBet({
       userId,
@@ -125,6 +141,7 @@ router.post("/spin-bottle/bet", async (req, res) => {
       status,
       winAmount: winAmount || (status === "won" ? stake * 2 : 0),
       currencyType: currencyType || "NGN",
+      betCode,
     });
 
     await bet.save();
