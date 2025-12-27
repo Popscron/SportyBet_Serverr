@@ -55,6 +55,10 @@ const userSchema = new mongoose.Schema(
       min: 0,
       max: 100,
     },
+    autoCashoutNotification: {
+      type: Boolean,
+      default: true,
+    },
     platform: {
       type: String,
       enum: ["sportybet", "spindict"],

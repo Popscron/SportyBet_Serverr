@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const mongoose = require("mongoose");
 const BankAccount = require("../models/BankAccount");
 const User = require("../models/user");
 
@@ -150,13 +151,39 @@ router.delete("/bank-accounts/:accountId", async (req, res) => {
       return res.status(400).json({ success: false, message: "User ID is required" });
     }
 
-    const account = await BankAccount.findById(accountId);
-    if (!account) {
-      return res.status(404).json({ success: false, message: "Bank account not found" });
+    if (!accountId) {
+      return res.status(400).json({ success: false, message: "Account ID is required" });
     }
 
-    // Verify the account belongs to the user
-    if (account.userId.toString() !== userId) {
+    let account;
+    
+    // Validate accountId is a valid MongoDB ObjectId
+    if (mongoose.Types.ObjectId.isValid(accountId)) {
+      // Try to find by MongoDB _id
+      account = await BankAccount.findById(accountId);
+    }
+    
+    // If not found by _id, try to find by accountNumber (for accounts created before _id was stored)
+    if (!account && req.body.accountNumber) {
+      account = await BankAccount.findOne({ 
+        userId: userId,
+        accountNumber: req.body.accountNumber 
+      });
+    }
+    
+    if (!account) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Bank account not found",
+        accountId: accountId 
+      });
+    }
+
+    // Verify the account belongs to the user - handle both string and ObjectId comparison
+    const accountUserId = account.userId.toString();
+    const requestUserId = userId.toString();
+    
+    if (accountUserId !== requestUserId) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 
@@ -168,6 +195,12 @@ router.delete("/bank-accounts/:accountId", async (req, res) => {
     });
   } catch (error) {
     console.error("Error deleting bank account:", error);
+    console.error("Error details:", {
+      accountId: req.params.accountId,
+      userId: req.body.userId,
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 });

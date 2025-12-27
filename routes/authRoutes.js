@@ -771,7 +771,7 @@ router.patch("/update-status/:userId", async (req, res) => {
 });
 
 router.post("/update-profile", async (req, res) => {
-  const { userId, name, amount, phone, email, userIcon, darkMode, potentialRewards, loyaltyProgress } = req.body;
+  const { userId, name, amount, phone, email, userIcon, darkMode, potentialRewards, loyaltyProgress, autoCashoutNotification } = req.body;
 
   try {
     // ✅ Update user basic info
@@ -795,6 +795,11 @@ router.post("/update-profile", async (req, res) => {
     // Add loyaltyProgress if provided
     if (loyaltyProgress !== undefined) {
       updateData.loyaltyProgress = Math.max(0, Math.min(100, loyaltyProgress)); // Clamp between 0-100
+    }
+
+    // Add autoCashoutNotification if provided
+    if (autoCashoutNotification !== undefined) {
+      updateData.autoCashoutNotification = autoCashoutNotification;
     }
     
     await User.findByIdAndUpdate(userId, updateData);
