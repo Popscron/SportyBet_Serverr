@@ -216,6 +216,8 @@ router.post("/login", async (req, res) => {
           userId: user._id,
           deviceId: deviceInfo.deviceId || req.ip,
           deviceName: deviceInfo.deviceName || "Unknown Device",
+          modelName: deviceInfo.modelName || deviceInfo.deviceName || "Unknown Model",
+          modelId: deviceInfo.modelId || null, // Store modelId for future reference
           deviceType: deviceInfo.deviceType || "unknown",
           platform: deviceInfo.platform || "Unknown",
           osVersion: deviceInfo.osVersion,
@@ -225,20 +227,63 @@ router.post("/login", async (req, res) => {
           lastLoginAt: new Date(),
         };
 
-        // Check if device already exists
-        const existingDevice = await Device.findOne({
+        console.log(`[Login] Device data received:`, {
+          deviceId: deviceData.deviceId,
+          deviceName: deviceData.deviceName,
+          modelName: deviceData.modelName,
+          platform: deviceData.platform
+        });
+
+        // Check if device already exists (by deviceId or by matching device info)
+        let existingDevice = await Device.findOne({
           userId: user._id,
           deviceId: deviceData.deviceId,
         });
+        
+        console.log(`[Login] Device lookup by deviceId (${deviceData.deviceId}):`, existingDevice ? 'Found' : 'Not found');
+        
+        // If not found by deviceId, try to find by platform and deviceName (for devices created before modelName was added)
+        if (!existingDevice && deviceData.platform) {
+          existingDevice = await Device.findOne({
+            userId: user._id,
+            platform: deviceData.platform,
+            deviceName: deviceData.deviceName,
+          }).sort({ lastLoginAt: -1 }); // Get the most recent one
+          
+          console.log(`[Login] Device lookup by platform+deviceName:`, existingDevice ? `Found (${existingDevice._id})` : 'Not found');
+        }
+        
+        // If still not found, try to find any iOS device for this user (last resort)
+        if (!existingDevice && deviceData.platform === 'ios') {
+          existingDevice = await Device.findOne({
+            userId: user._id,
+            platform: 'ios',
+            isActive: true,
+          }).sort({ lastLoginAt: -1 }); // Get the most recent active iOS device
+          
+          console.log(`[Login] Device lookup by platform only (iOS):`, existingDevice ? `Found (${existingDevice._id})` : 'Not found');
+        }
 
         if (existingDevice) {
-          // Update existing device
-          await Device.findByIdAndUpdate(existingDevice._id, {
+          // Update existing device - ensure modelName and modelId are included
+          const updateData = {
             lastLoginAt: new Date(),
             loginCount: existingDevice.loginCount + 1,
             isActive: true,
-            ...deviceData,
-          });
+            deviceName: deviceData.deviceName,
+            modelName: deviceData.modelName || deviceData.deviceName || 'Unknown Model',
+            modelId: deviceData.modelId || existingDevice.modelId || null,
+            deviceType: deviceData.deviceType,
+            platform: deviceData.platform,
+            osVersion: deviceData.osVersion,
+            appVersion: deviceData.appVersion,
+            ipAddress: deviceData.ipAddress,
+            location: deviceData.location,
+          };
+          
+          console.log(`[Login] Updating device ${existingDevice._id} with modelName: ${updateData.modelName}`);
+          const updatedDevice = await Device.findByIdAndUpdate(existingDevice._id, updateData, { new: true });
+          console.log(`[Login] Device updated successfully. New modelName: ${updatedDevice?.modelName}`);
         } else {
           // Check user subscription type and expiry
           const isPremium = user.subscription === "Premium" && 
@@ -765,6 +810,40 @@ router.post("/update-profile", async (req, res) => {
   } catch (err) {
     console.error("Update error:", err);
     return res.status(500).json({ success: false, message: "Update failed" });
+  }
+});
+
+// Update user fields (subscription, username, expiry)
+router.put("/admin/updateUserFields", async (req, res) => {
+  try {
+    const { userId, username, subscription, expiry } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const updateData = {};
+    if (username !== undefined) updateData.username = username;
+    if (subscription !== undefined) updateData.subscription = subscription;
+    if (expiry !== undefined) {
+      updateData.expiry = expiry ? new Date(expiry) : null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: "No fields to update" });
+    }
+
+    await User.findByIdAndUpdate(userId, updateData, { new: true, runValidators: false });
+
+    return res.json({ success: true, message: "User fields updated successfully" });
+  } catch (error) {
+    console.error("Error updating user fields:", error);
+    return res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
 });
 
