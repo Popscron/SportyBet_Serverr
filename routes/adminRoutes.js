@@ -1,28 +1,89 @@
 const express = require("express");
 const router = express.Router();
-const authMiddleware = require("../middleware/authMiddleware");
+const jwt = require("jsonwebtoken");
 const DeviceRequest = require("../models/DeviceRequest");
 const Device = require("../models/Device");
 const User = require("../models/user");
+const SECRET_KEY = "your_secret_key";
 
-// All admin routes require authentication
-router.use(authMiddleware);
+// Admin authentication middleware that supports both cookies and Authorization header
+const adminAuth = async (req, res, next) => {
+  try {
+    // Try to get token from cookie first (for website)
+    let token = req.cookies?.sportybetToken;
+    
+    // If no cookie, try Authorization header (for API)
+    if (!token) {
+      token = req.header("Authorization")?.replace("Bearer ", "");
+    }
 
-// Helper function to check if user is admin
-const isAdmin = (req, res, next) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).json({
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: "Access denied. Authentication required.",
+      });
+    }
+
+    // Verify token
+    const decoded = jwt.verify(token, SECRET_KEY);
+    
+    // For cookie-based auth (admin login), decoded.email is set
+    // For user auth, decoded.id is set
+    let user;
+    if (decoded.email) {
+      // Admin login via cookie - check if email is in admin list
+      const adminEmails = (process.env.ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase());
+      if (!adminEmails.includes(decoded.email.toLowerCase())) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Admin privileges required.",
+        });
+      }
+      // Create a minimal user object for admin
+      req.user = { _id: decoded.email, role: "admin", email: decoded.email };
+      return next();
+    } else if (decoded.id) {
+      // User auth - get user from database
+      user = await User.findById(decoded.id);
+      if (!user || user.token !== token) {
+        return res.status(401).json({
+          success: false,
+          message: "Session expired. Please log in again.",
+        });
+      }
+      
+      // Check if user is admin
+      if (user.role !== "admin") {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied. Admin privileges required.",
+        });
+      }
+      
+      req.user = user;
+      req.user.id = user._id;
+      return next();
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid token format.",
+      });
+    }
+  } catch (error) {
+    return res.status(401).json({
       success: false,
-      message: "Access denied. Admin privileges required.",
+      message: "Invalid or expired token.",
     });
   }
-  next();
 };
+
+// All admin routes require authentication
+router.use(adminAuth);
 
 // @route   GET /api/admin/device-requests
 // @desc    Get all pending device requests (Admin only)
 // @access  Private (Admin)
-router.get("/device-requests", isAdmin, async (req, res) => {
+router.get("/device-requests", async (req, res) => {
   try {
     const { status } = req.query;
     
@@ -54,7 +115,7 @@ router.get("/device-requests", isAdmin, async (req, res) => {
 // @route   GET /api/admin/device-requests/:id
 // @desc    Get a specific device request by ID (Admin only)
 // @access  Private (Admin)
-router.get("/device-requests/:id", isAdmin, async (req, res) => {
+router.get("/device-requests/:id", async (req, res) => {
   try {
     const request = await DeviceRequest.findById(req.params.id)
       .populate("userId", "name email username mobileNumber subscription expiry")
@@ -85,7 +146,7 @@ router.get("/device-requests/:id", isAdmin, async (req, res) => {
 // @route   PUT /api/admin/device-requests/:id/approve
 // @desc    Approve a device request (Admin only)
 // @access  Private (Admin)
-router.put("/device-requests/:id/approve", isAdmin, async (req, res) => {
+router.put("/device-requests/:id/approve", async (req, res) => {
   try {
     const request = await DeviceRequest.findById(req.params.id)
       .populate("userId")
@@ -149,11 +210,15 @@ router.put("/device-requests/:id/approve", isAdmin, async (req, res) => {
       loginCount: 1,
     });
 
-    // Update the request status
-    request.status = "approved";
-    request.reviewedBy = req.user._id;
-    request.reviewedAt = new Date();
-    await request.save();
+      // Update the request status
+      request.status = "approved";
+      // For cookie-based admin auth, reviewedBy might be email string, skip it
+      // For user-based auth, reviewedBy is user._id
+      if (req.user._id && typeof req.user._id === 'object') {
+        request.reviewedBy = req.user._id;
+      }
+      request.reviewedAt = new Date();
+      await request.save();
 
     res.json({
       success: true,
@@ -176,7 +241,7 @@ router.put("/device-requests/:id/approve", isAdmin, async (req, res) => {
 // @route   PUT /api/admin/device-requests/:id/reject
 // @desc    Reject a device request (Admin only)
 // @access  Private (Admin)
-router.put("/device-requests/:id/reject", isAdmin, async (req, res) => {
+router.put("/device-requests/:id/reject", async (req, res) => {
   try {
     const { rejectionReason } = req.body;
 
@@ -198,7 +263,11 @@ router.put("/device-requests/:id/reject", isAdmin, async (req, res) => {
 
     // Update the request status
     request.status = "rejected";
-    request.reviewedBy = req.user._id;
+    // For cookie-based admin auth, reviewedBy might be email string, skip it
+    // For user-based auth, reviewedBy is user._id
+    if (req.user._id && typeof req.user._id === 'object') {
+      request.reviewedBy = req.user._id;
+    }
     request.reviewedAt = new Date();
     request.rejectionReason = rejectionReason || "No reason provided";
     await request.save();
@@ -221,7 +290,7 @@ router.put("/device-requests/:id/reject", isAdmin, async (req, res) => {
 // @route   GET /api/admin/users/:userId/devices
 // @desc    Get all devices for a specific user (Admin only)
 // @access  Private (Admin)
-router.get("/users/:userId/devices", isAdmin, async (req, res) => {
+router.get("/users/:userId/devices", async (req, res) => {
   try {
     const devices = await Device.find({ userId: req.params.userId })
       .sort({ lastLoginAt: -1 });
@@ -251,7 +320,7 @@ router.get("/users/:userId/devices", isAdmin, async (req, res) => {
 // @route   PUT /api/admin/devices/:deviceId/deactivate
 // @desc    Deactivate a device (Admin only)
 // @access  Private (Admin)
-router.put("/devices/:deviceId/deactivate", isAdmin, async (req, res) => {
+router.put("/devices/:deviceId/deactivate", async (req, res) => {
   try {
     const device = await Device.findById(req.params.deviceId);
 
