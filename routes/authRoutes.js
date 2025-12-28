@@ -202,15 +202,7 @@ router.post("/login", async (req, res) => {
         });
     }
 
-    // ✅ Generate JWT
-    const token = jwt.sign({ id: user._id, email: user.email }, SECRET_KEY, {
-      expiresIn: "7d",
-    });
-
-    // ✅ Save token in DB
-    await User.findByIdAndUpdate(user._id, { token });
-
-    // ✅ Track device information if provided
+    // ✅ Track device information if provided and check device limits BEFORE generating token
     if (deviceInfo) {
       try {
         const deviceData = {
@@ -337,15 +329,23 @@ router.post("/login", async (req, res) => {
             });
           }
 
-          // Create new device (allowed if within limit or after deactivating oldest)
+          // Create new device (allowed if within limit)
           await Device.create(deviceData);
-          console.log(`[Login] Premium user login - Active devices: ${activeDevices.length}, Max: ${maxDevices}, New device created`);
+          console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
         }
       } catch (deviceError) {
         console.error("Device tracking error:", deviceError);
         // Don't fail login if device tracking fails
       }
     }
+
+    // ✅ Generate JWT only after device check passes
+    const token = jwt.sign({ id: user._id, email: user.email }, SECRET_KEY, {
+      expiresIn: "7d",
+    });
+
+    // ✅ Save token in DB only after device check passes
+    await User.findByIdAndUpdate(user._id, { token });
 
     res.status(200).json({
       success: true,
@@ -388,15 +388,97 @@ router.get("/user/profile", authMiddleware, async (req, res) => {
 router.get("/user/devices", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;
+    const user = await User.findById(userId);
 
-    const devices = await Device.find({ userId, isActive: true })
+    const isPremium = user.subscription === "Premium" && 
+                     (!user.expiry || new Date(user.expiry) > new Date());
+    const maxDevices = isPremium ? 2 : 1;
+
+    const devices = await Device.find({ userId })
       .sort({ lastLoginAt: -1 })
       .select("-userId -__v");
 
-    res.json({ success: true, devices });
+    const activeDevices = devices.filter(d => d.isActive);
+    const inactiveDevices = devices.filter(d => !d.isActive);
+
+    res.json({ 
+      success: true, 
+      devices: activeDevices,
+      allDevices: devices,
+      activeDevices: activeDevices,
+      inactiveDevices: inactiveDevices,
+      subscriptionType: user.subscription || "Basic",
+      maxDevices: maxDevices,
+      currentDeviceCount: activeDevices.length,
+      canAddDevice: activeDevices.length < maxDevices
+    });
   } catch (error) {
     console.error("Error fetching user devices:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get user's device requests
+router.get("/user/device-requests", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status } = req.query;
+
+    const query = { userId };
+    if (status) {
+      query.status = status;
+    }
+
+    const requests = await DeviceRequest.find(query)
+      .populate("reviewedBy", "name email")
+      .sort({ requestedAt: -1 });
+
+    res.json({
+      success: true,
+      data: requests,
+      count: requests.length,
+    });
+  } catch (error) {
+    console.error("Error fetching device requests:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching device requests",
+      error: error.message,
+    });
+  }
+});
+
+// Get specific device request by ID
+router.get("/user/device-requests/:id", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const requestId = req.params.id;
+
+    const request = await DeviceRequest.findOne({
+      _id: requestId,
+      userId: userId, // Ensure user can only view their own requests
+    })
+      .populate("reviewedBy", "name email")
+      .populate("currentActiveDevices", "deviceName platform lastLoginAt");
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Device request not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: request,
+    });
+  } catch (error) {
+    console.error("Error fetching device request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching device request",
+      error: error.message,
+    });
   }
 });
 
