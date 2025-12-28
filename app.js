@@ -27,6 +27,7 @@ const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const maxBonusRoutes = require("./routes/maxBonusRoute.js");
 const sportyHeroRoutes = require("./routes/sportyHeroRoute");
 const bankAccountRoutes = require("./routes/bankAccountRoute");
+const adminRoutes = require("./routes/adminRoutes.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
@@ -144,6 +145,7 @@ app.use("/api", spinBottleRoutes);
 app.use("/api", sportyHeroRoutes);
 app.use("/api", maxBonusRoutes);
 app.use("/api", bankAccountRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Spindict routes
 const spindictRoutes = require("./routes/spindictRoutes");
