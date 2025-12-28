@@ -45,7 +45,9 @@ router.post("/multibets", async (req, res) => {
             createdAt: new Date(), // ✅ Store timestamp
             type:type,
             userId1: userId1 || null,
-            chatNumber: Math.floor(Math.random() * 100) + 1
+            chatNumber: Math.floor(Math.random() * 100) + 1,
+            league: bet?.league || null, // Optional league field
+            country: bet?.country || null // Optional country field
         }));
 
         // ✅ Insert bets into MongoDB
@@ -71,7 +73,7 @@ router.post("/multibets", async (req, res) => {
 
 router.post("/add-match", async (req, res) => {
     try {
-      const {userId, gameId, dateTime, teams, userId1 } = req.body;
+      const {userId, gameId, dateTime, teams, userId1, league, country } = req.body;
   
       // Validation: Check if all fields are present
       if (!gameId || !dateTime || !teams) {
@@ -100,7 +102,16 @@ router.post("/add-match", async (req, res) => {
     }
   
       // Save to MongoDB
-      const newMatch = new Bet({userId, gameId, dateTime, teams, userId1, chatNumber: Math.floor(Math.random() * 100) + 1 });
+      const newMatch = new Bet({
+        userId, 
+        gameId, 
+        dateTime, 
+        teams, 
+        userId1, 
+        chatNumber: Math.floor(Math.random() * 100) + 1,
+        league: league || null, // Optional league field
+        country: country || null // Optional country field
+      });
       await newMatch.save();
   
       res.status(201).json({ message: "Match added successfully", match: newMatch });
@@ -127,6 +138,8 @@ router.post("/add-match1", async (req, res) => {
       type = "Football",
       userId1, // References User document _id
       liveOdd,
+      league,
+      country,
     } = req.body;
 
     // Validation: Check required fields
@@ -162,6 +175,8 @@ router.post("/add-match1", async (req, res) => {
       type,
       userId1,
       liveOdd,
+      league: league || null,
+      country: country || null,
     });
     await newMatch.save();
 
@@ -276,12 +291,20 @@ router.get("/multibets/:userId", async (req, res) => {
 router.put("/multibets/update/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const { teams, gameId, dateTime } = req.body;
+        const { teams, gameId, dateTime, league, country } = req.body;
+
+        // Prepare update object with only provided fields
+        const updateData = {};
+        if (teams !== undefined) updateData.teams = teams;
+        if (gameId !== undefined) updateData.gameId = gameId;
+        if (dateTime !== undefined) updateData.dateTime = dateTime;
+        if (league !== undefined) updateData.league = league;
+        if (country !== undefined) updateData.country = country;
 
         // Find and update the bet entry
         const updatedBet = await Bet.findByIdAndUpdate(
             id,
-            { teams, gameId, dateTime },
+            updateData,
             { new: true } // Returns the updated document
         );
 

@@ -18,7 +18,9 @@ const BetSchema = new mongoose.Schema({
     chatNumber: {type: String, default:0},
     type: { type: String, enum: ["Football", "eFootball", "vFootball"], default: "Football" },
     userId1: String,
-    liveOdd: String
+    liveOdd: String,
+    league: String,
+    country: String
   });
 
   module.exports = mongoose.model("multbet", BetSchema)
