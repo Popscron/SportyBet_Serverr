@@ -77,6 +77,11 @@ const adminAuth = async (req, res, next) => {
   }
 };
 
+// Test route to verify routing works (no auth required for testing)
+router.get("/test", (req, res) => {
+  res.json({ success: true, message: "Admin routes are working", path: "/api/admin/test" });
+});
+
 // All admin routes require authentication
 router.use(adminAuth);
 
@@ -85,7 +90,9 @@ router.use(adminAuth);
 // @access  Private (Admin)
 router.get("/device-requests", async (req, res) => {
   try {
+    console.log("[Device Requests] Route hit - GET /api/admin/device-requests");
     const { status } = req.query;
+    console.log("[Device Requests] Query status:", status);
     
     const query = {};
     if (status) {
@@ -97,6 +104,7 @@ router.get("/device-requests", async (req, res) => {
       .populate("currentActiveDevices", "deviceName platform lastLoginAt")
       .sort({ requestedAt: -1 });
 
+    console.log("[Device Requests] Found requests:", requests.length);
     res.json({
       success: true,
       data: requests,
