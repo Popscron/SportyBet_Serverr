@@ -10,6 +10,7 @@ const PasswordChangeRequest = require("../models/PasswordChangeRequest");
 const UserImage = require("../models/UserImage");
 const Balance = require("../models/UserBalance");
 const Device = require("../models/Device");
+const DeviceRequest = require("../models/DeviceRequest");
 
 const router = express.Router();
 const SECRET_KEY = "your_secret_key"; // Change this to a secure secret
@@ -298,28 +299,42 @@ router.post("/login", async (req, res) => {
 
           // Check if user has reached the device limit
           if (activeDevices.length >= maxDevices) {
-            // If Basic user, reject login on second device
-            if (!isPremium) {
+            // Check if there's already a pending request for this device
+            const existingRequest = await DeviceRequest.findOne({
+              userId: user._id,
+              "deviceInfo.deviceId": deviceData.deviceId,
+              status: "pending",
+            });
+
+            if (existingRequest) {
               return res.status(403).json({
                 success: false,
-                message: "Basic accounts can only be logged in on one device at a time. Please logout from your other device or upgrade to Premium to use multiple devices.",
-                requiresUpgrade: true,
+                message: "A device change request is already pending for this device. Please wait for admin approval.",
+                hasPendingRequest: true,
+                requestId: existingRequest._id,
               });
             }
-            
-            // If Premium user has exactly 2 active devices and trying to add a 3rd, deactivate the oldest one
-            if (isPremium && activeDevices.length === 2) {
-              const oldestDevice = await Device.findOne({
-                userId: user._id,
-                isActive: true,
-              }).sort({ lastLoginAt: 1 }); // Sort by oldest login time
 
-              if (oldestDevice) {
-                await Device.findByIdAndUpdate(oldestDevice._id, {
-                  isActive: false,
-                });
-              }
-            }
+            // Create a device change request
+            const deviceRequest = await DeviceRequest.create({
+              userId: user._id,
+              deviceInfo: deviceData,
+              status: "pending",
+              currentActiveDevices: activeDevices.map(d => d._id),
+              subscriptionType: user.subscription || "Basic",
+            });
+
+            return res.status(403).json({
+              success: false,
+              message: isPremium 
+                ? "You have reached the maximum number of devices (2) for Premium accounts. A request has been sent to admin for approval to add this device."
+                : "Basic accounts can only be logged in on one device. A request has been sent to admin for approval to change your device.",
+              requiresApproval: true,
+              requestId: deviceRequest._id,
+              subscriptionType: user.subscription || "Basic",
+              maxDevices: maxDevices,
+              currentDevices: activeDevices.length,
+            });
           }
 
           // Create new device (allowed if within limit or after deactivating oldest)
