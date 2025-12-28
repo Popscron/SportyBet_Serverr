@@ -304,29 +304,56 @@ router.post("/login", async (req, res) => {
                 message: "A device change request is already pending for this device. Please wait for admin approval.",
                 hasPendingRequest: true,
                 requestId: existingRequest._id,
+                requiresApproval: true,
               });
             }
 
-            // Create a device change request
-            const deviceRequest = await DeviceRequest.create({
+            // Check if there's an approved request for this device
+            const approvedRequest = await DeviceRequest.findOne({
               userId: user._id,
-              deviceInfo: deviceData,
-              status: "pending",
-              currentActiveDevices: activeDevices.map(d => d._id),
-              subscriptionType: user.subscription || "Basic",
+              "deviceInfo.deviceId": deviceData.deviceId,
+              status: "approved",
             });
 
-            return res.status(403).json({
-              success: false,
-              message: isPremium 
-                ? "You have reached the maximum number of devices (2) for Premium accounts. A request has been sent to admin for approval to add this device."
-                : "Basic accounts can only be logged in on one device. A request has been sent to admin for approval to change your device.",
-              requiresApproval: true,
-              requestId: deviceRequest._id,
-              subscriptionType: user.subscription || "Basic",
-              maxDevices: maxDevices,
-              currentDevices: activeDevices.length,
-            });
+            if (approvedRequest) {
+              // Device was approved, allow login and create the device
+              // Check if device already exists (might have been created during approval)
+              const approvedDevice = await Device.findOne({
+                userId: user._id,
+                deviceId: deviceData.deviceId,
+              });
+
+              if (!approvedDevice) {
+                // Create the device since it was approved
+                await Device.create({
+                  ...deviceData,
+                  isActive: true,
+                  loginCount: 1,
+                });
+                console.log(`[Login] Approved device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+              } else {
+                // Update existing approved device
+                approvedDevice.isActive = true;
+                approvedDevice.lastLoginAt = new Date();
+                approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
+                await approvedDevice.save();
+              }
+              // Continue with login (device will be created/updated above)
+            } else {
+              // Return response asking user to confirm before creating request
+              // DO NOT create request automatically - wait for user confirmation
+              return res.status(403).json({
+                success: false,
+                message: isPremium 
+                  ? `You have reached the maximum number of devices (${maxDevices}) for Premium accounts. Would you like to send a request to admin to add this device?`
+                  : `Basic accounts can only be logged in on one device. Would you like to send a request to admin to change your device?`,
+                requiresConfirmation: true,
+                subscriptionType: user.subscription || "Basic",
+                maxDevices: maxDevices,
+                currentDevices: activeDevices.length,
+                deviceInfo: deviceData,
+              });
+            }
           }
 
           // Create new device (allowed if within limit)
@@ -415,6 +442,106 @@ router.get("/user/devices", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Error fetching user devices:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create device request after user confirmation
+router.post("/user/create-device-request", async (req, res) => {
+  try {
+    const { identifier, password, deviceInfo } = req.body;
+
+    if (!identifier || !password || !deviceInfo) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifier, password, and device info are required",
+      });
+    }
+
+    // Verify user credentials first
+    const user = await User.findOne({
+      $or: [
+        { email: identifier },
+        { username: identifier },
+        { mobileNumber: identifier },
+      ],
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    // Check if request already exists
+    const existingRequest = await DeviceRequest.findOne({
+      userId: user._id,
+      "deviceInfo.deviceId": deviceInfo.deviceId,
+      status: "pending",
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({
+        success: false,
+        message: "A device request is already pending for this device",
+        requestId: existingRequest._id,
+      });
+    }
+
+    // Get active devices
+    const activeDevices = await Device.find({
+      userId: user._id,
+      isActive: true,
+    });
+
+    const isPremium = user.subscription === "Premium" && 
+                     (!user.expiry || new Date(user.expiry) > new Date());
+    const maxDevices = isPremium ? 2 : 1;
+
+    // Prepare device data
+    const deviceData = {
+      userId: user._id,
+      deviceId: deviceInfo.deviceId || req.ip,
+      deviceName: deviceInfo.deviceName || "Unknown Device",
+      modelName: deviceInfo.modelName || deviceInfo.deviceName || "Unknown Model",
+      modelId: deviceInfo.modelId || null,
+      deviceType: deviceInfo.deviceType || "unknown",
+      platform: deviceInfo.platform || "Unknown",
+      osVersion: deviceInfo.osVersion,
+      appVersion: deviceInfo.appVersion,
+      ipAddress: req.ip,
+      location: deviceInfo.location,
+    };
+
+    // Create the device request
+    const deviceRequest = await DeviceRequest.create({
+      userId: user._id,
+      deviceInfo: deviceData,
+      status: "pending",
+      currentActiveDevices: activeDevices.map(d => d._id),
+      subscriptionType: user.subscription || "Basic",
+    });
+
+    res.json({
+      success: true,
+      message: "Device request created successfully. Please wait for admin approval.",
+      requestId: deviceRequest._id,
+    });
+  } catch (error) {
+    console.error("Error creating device request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error creating device request",
+      error: error.message,
+    });
   }
 });
 
