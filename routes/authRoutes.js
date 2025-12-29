@@ -457,6 +457,14 @@ router.post("/user/create-device-request", async (req, res) => {
       });
     }
 
+    // Verify deviceInfo is an object
+    if (typeof deviceInfo !== 'object' || deviceInfo === null) {
+      return res.status(400).json({
+        success: false,
+        message: "Device info must be an object",
+      });
+    }
+
     // Verify user credentials first
     const user = await User.findOne({
       $or: [
@@ -481,10 +489,13 @@ router.post("/user/create-device-request", async (req, res) => {
       });
     }
 
+    // Extract deviceId safely
+    const deviceId = deviceInfo?.deviceId || req.ip;
+
     // Check if request already exists
     const existingRequest = await DeviceRequest.findOne({
       userId: user._id,
-      "deviceInfo.deviceId": deviceInfo.deviceId,
+      "deviceInfo.deviceId": deviceId,
       status: "pending",
     });
 
@@ -506,19 +517,18 @@ router.post("/user/create-device-request", async (req, res) => {
                      (!user.expiry || new Date(user.expiry) > new Date());
     const maxDevices = isPremium ? 2 : 1;
 
-    // Prepare device data
+    // Prepare device data with safe property access
     const deviceData = {
-      userId: user._id,
-      deviceId: deviceInfo.deviceId || req.ip,
-      deviceName: deviceInfo.deviceName || "Unknown Device",
-      modelName: deviceInfo.modelName || deviceInfo.deviceName || "Unknown Model",
-      modelId: deviceInfo.modelId || null,
-      deviceType: deviceInfo.deviceType || "unknown",
-      platform: deviceInfo.platform || "Unknown",
-      osVersion: deviceInfo.osVersion,
-      appVersion: deviceInfo.appVersion,
+      deviceId: deviceInfo?.deviceId || req.ip,
+      deviceName: deviceInfo?.deviceName || "Unknown Device",
+      modelName: deviceInfo?.modelName || deviceInfo?.deviceName || "Unknown Model",
+      modelId: deviceInfo?.modelId || null,
+      deviceType: deviceInfo?.deviceType || "unknown",
+      platform: deviceInfo?.platform || "Unknown",
+      osVersion: deviceInfo?.osVersion || null,
+      appVersion: deviceInfo?.appVersion || null,
       ipAddress: req.ip,
-      location: deviceInfo.location,
+      location: deviceInfo?.location || null,
     };
 
     // Create the device request
