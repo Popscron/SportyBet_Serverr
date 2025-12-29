@@ -203,20 +203,20 @@ router.post("/login", async (req, res) => {
     }
 
     // ✅ Track device information if provided and check device limits BEFORE generating token
-    if (deviceInfo) {
+    if (deviceInfo && typeof deviceInfo === 'object' && deviceInfo !== null) {
       try {
         const deviceData = {
           userId: user._id,
-          deviceId: deviceInfo.deviceId || req.ip,
-          deviceName: deviceInfo.deviceName || "Unknown Device",
-          modelName: deviceInfo.modelName || deviceInfo.deviceName || "Unknown Model",
-          modelId: deviceInfo.modelId || null, // Store modelId for future reference
-          deviceType: deviceInfo.deviceType || "unknown",
-          platform: deviceInfo.platform || "Unknown",
-          osVersion: deviceInfo.osVersion,
-          appVersion: deviceInfo.appVersion,
+          deviceId: deviceInfo?.deviceId || req.ip,
+          deviceName: deviceInfo?.deviceName || "Unknown Device",
+          modelName: deviceInfo?.modelName || deviceInfo?.deviceName || "Unknown Model",
+          modelId: deviceInfo?.modelId || null, // Store modelId for future reference
+          deviceType: deviceInfo?.deviceType || "unknown",
+          platform: deviceInfo?.platform || "Unknown",
+          osVersion: deviceInfo?.osVersion || null,
+          appVersion: deviceInfo?.appVersion || null,
           ipAddress: req.ip,
-          location: deviceInfo.location,
+          location: deviceInfo?.location || null,
           lastLoginAt: new Date(),
         };
 
@@ -448,17 +448,27 @@ router.get("/user/devices", authMiddleware, async (req, res) => {
 // Create device request after user confirmation
 router.post("/user/create-device-request", async (req, res) => {
   try {
+    console.log("[Create Device Request] Request body:", JSON.stringify(req.body, null, 2));
+    
     const { identifier, password, deviceInfo } = req.body;
 
-    if (!identifier || !password || !deviceInfo) {
+    if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: "Identifier, password, and device info are required",
+        message: "Identifier and password are required",
+      });
+    }
+
+    if (!deviceInfo) {
+      return res.status(400).json({
+        success: false,
+        message: "Device info is required",
       });
     }
 
     // Verify deviceInfo is an object
-    if (typeof deviceInfo !== 'object' || deviceInfo === null) {
+    if (typeof deviceInfo !== 'object' || deviceInfo === null || Array.isArray(deviceInfo)) {
+      console.error("[Create Device Request] Invalid deviceInfo type:", typeof deviceInfo, deviceInfo);
       return res.status(400).json({
         success: false,
         message: "Device info must be an object",
@@ -489,8 +499,8 @@ router.post("/user/create-device-request", async (req, res) => {
       });
     }
 
-    // Extract deviceId safely
-    const deviceId = deviceInfo?.deviceId || req.ip;
+    // Extract deviceId safely (deviceInfo is already validated as an object above)
+    const deviceId = (deviceInfo && deviceInfo.deviceId) ? deviceInfo.deviceId : req.ip;
 
     // Check if request already exists
     const existingRequest = await DeviceRequest.findOne({
@@ -518,27 +528,51 @@ router.post("/user/create-device-request", async (req, res) => {
     const maxDevices = isPremium ? 2 : 1;
 
     // Prepare device data with safe property access
-    const deviceData = {
-      deviceId: deviceInfo?.deviceId || req.ip,
-      deviceName: deviceInfo?.deviceName || "Unknown Device",
-      modelName: deviceInfo?.modelName || deviceInfo?.deviceName || "Unknown Model",
-      modelId: deviceInfo?.modelId || null,
-      deviceType: deviceInfo?.deviceType || "unknown",
-      platform: deviceInfo?.platform || "Unknown",
-      osVersion: deviceInfo?.osVersion || null,
-      appVersion: deviceInfo?.appVersion || null,
-      ipAddress: req.ip,
-      location: deviceInfo?.location || null,
-    };
+    let deviceData;
+    try {
+      // Ensure deviceInfo exists and is an object before accessing properties
+      if (!deviceInfo || typeof deviceInfo !== 'object') {
+        throw new Error('deviceInfo is not a valid object');
+      }
+      
+      deviceData = {
+        deviceId: deviceInfo.deviceId || req.ip,
+        deviceName: deviceInfo.deviceName || "Unknown Device",
+        modelName: deviceInfo.modelName || deviceInfo.deviceName || "Unknown Model",
+        modelId: deviceInfo.modelId || null,
+        deviceType: deviceInfo.deviceType || "unknown",
+        platform: deviceInfo.platform || "Unknown",
+        osVersion: deviceInfo.osVersion || null,
+        appVersion: deviceInfo.appVersion || null,
+        ipAddress: req.ip,
+        location: deviceInfo.location || null,
+      };
+    } catch (dataError) {
+      console.error("[Create Device Request] Error preparing device data:", dataError);
+      return res.status(400).json({
+        success: false,
+        message: "Error processing device information: " + dataError.message,
+      });
+    }
 
     // Create the device request
-    const deviceRequest = await DeviceRequest.create({
-      userId: user._id,
-      deviceInfo: deviceData,
-      status: "pending",
-      currentActiveDevices: activeDevices.map(d => d._id),
-      subscriptionType: user.subscription || "Basic",
-    });
+    let deviceRequest;
+    try {
+      deviceRequest = await DeviceRequest.create({
+        userId: user._id,
+        deviceInfo: deviceData,
+        status: "pending",
+        currentActiveDevices: activeDevices.map(d => d._id),
+        subscriptionType: user.subscription || "Basic",
+      });
+    } catch (createError) {
+      console.error("[Create Device Request] Error creating device request:", createError);
+      return res.status(500).json({
+        success: false,
+        message: "Error creating device request",
+        error: createError.message,
+      });
+    }
 
     res.json({
       success: true,
