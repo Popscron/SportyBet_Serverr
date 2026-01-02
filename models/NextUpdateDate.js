@@ -24,7 +24,7 @@ nextUpdateDateSchema.statics.getOrCreate = async function() {
   if (!doc) {
     doc = await this.create({
       initialDate: new Date(),
-      currentMonth: '01 Jan'
+      currentMonth: '01 Feb'
     });
   }
   return doc;
