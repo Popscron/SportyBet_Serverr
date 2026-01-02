@@ -12,7 +12,7 @@ const nextUpdateDateSchema = new mongoose.Schema({
   },
   currentMonth: {
     type: String,
-    default: '01 Jan'
+    default: '01 Feb'
   }
 }, {
   timestamps: true
@@ -41,8 +41,8 @@ nextUpdateDateSchema.methods.calculateCurrentMonth = function() {
   // Calculate how many 30-day periods have passed
   const periodsPassed = Math.floor(daysDiff / 30);
   
-  // Start from January (month 0)
-  const startMonth = 0; // January
+  // Start from February (month 1)
+  const startMonth = 1; // February
   const currentMonthIndex = (startMonth + periodsPassed) % 12;
   
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
