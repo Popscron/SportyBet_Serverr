@@ -404,30 +404,9 @@ router.get("/user/profile", authMiddleware, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Add server time to prevent date manipulation
-    const serverTime = new Date();
-
-    res.json({ 
-      success: true, 
-      user,
-      serverTime: serverTime.toISOString() // Include server time for subscription validation
-    });
+    res.json({ success: true, user });
   } catch (error) {
     console.error("Error fetching user data:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// Get server time for subscription validation (prevents date manipulation)
-router.get("/server-time", authMiddleware, async (req, res) => {
-  try {
-    const serverTime = new Date();
-    res.json({ 
-      success: true, 
-      serverTime: serverTime.toISOString() 
-    });
-  } catch (error) {
-    console.error("Error getting server time:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
