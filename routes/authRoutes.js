@@ -203,6 +203,7 @@ router.post("/login", async (req, res) => {
     }
 
     // ✅ Track device information if provided and check device limits BEFORE generating token
+    let isNewDevice = false; // Track if this is a new device
     if (deviceInfo && typeof deviceInfo === 'object' && deviceInfo !== null) {
       try {
         const deviceData = {
@@ -277,6 +278,7 @@ router.post("/login", async (req, res) => {
           console.log(`[Login] Updating device ${existingDevice._id} with modelName: ${updateData.modelName}`);
           const updatedDevice = await Device.findByIdAndUpdate(existingDevice._id, updateData, { new: true });
           console.log(`[Login] Device updated successfully. New modelName: ${updatedDevice?.modelName}`);
+          // Don't update user token for existing device - keep other devices logged in
         } else {
           // Check user subscription type and expiry
           const isPremium = user.subscription === "Premium" && 
@@ -331,12 +333,14 @@ router.post("/login", async (req, res) => {
                   loginCount: 1,
                 });
                 console.log(`[Login] Approved device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+                isNewDevice = true; // Mark as new device
               } else {
                 // Update existing approved device
                 approvedDevice.isActive = true;
                 approvedDevice.lastLoginAt = new Date();
                 approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
                 await approvedDevice.save();
+                // Don't mark as new device - it already existed
               }
               // Continue with login (device will be created/updated above)
             } else {
@@ -369,6 +373,7 @@ router.post("/login", async (req, res) => {
           // Create new device (allowed if within limit)
           await Device.create(deviceData);
           console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+          isNewDevice = true; // Mark as new device
         }
       } catch (deviceError) {
         console.error("Device tracking error:", deviceError);
@@ -381,8 +386,18 @@ router.post("/login", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // ✅ Save token in DB only after device check passes
-    await User.findByIdAndUpdate(user._id, { token });
+    // ✅ Save token in DB only for new devices (when device was just created)
+    // For existing devices, don't update token to keep other devices logged in
+    // This allows multiple devices to stay logged in simultaneously
+    if (isNewDevice) {
+      await User.findByIdAndUpdate(user._id, { token });
+    } else {
+      // For existing device, update token only if it's null (first time login after token was cleared)
+      const currentUser = await User.findById(user._id);
+      if (!currentUser.token) {
+        await User.findByIdAndUpdate(user._id, { token });
+      }
+    }
 
     res.status(200).json({
       success: true,
