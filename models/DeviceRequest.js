@@ -60,3 +60,5 @@ deviceRequestSchema.index({ status: 1, requestedAt: -1 });
 module.exports = mongoose.model("DeviceRequest", deviceRequestSchema);
 
 
+
+

@@ -8,15 +8,15 @@ const UserBalance = require("../models/UserBalance");
 
 
 // Helper function to format date
+// IMPORTANT: Always uses SERVER time, not device time
 const formatDate = (date) => {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   const year = date.getFullYear();
 
-  // Always use current time from device
-  const now = new Date();
-  const hours = now.getHours().toString().padStart(2, "0");
-  const minutes = now.getMinutes().toString().padStart(2, "0");
+  // Use SERVER time (the date parameter passed in)
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
 
   return `${day}/${month}, ${hours}:${minutes}`;
 };
@@ -53,14 +53,17 @@ router.post("/place", async (req, res) => {
 
     if (bet.userId.toString() !== userId) {
       // Copy bet to the logged-in user's account
+      // Explicitly set timestamp to server time
+      const serverTimestamp = new Date();
       const newBet = new BetModel({
         userId: userId,
         betCode: bet.betCode,
-        date: currentTime, // ✅ store current time
+        date: currentTime, // ✅ store current server time
         odd: bet.odd,
         bookingCode: bet.bookingCode,
         percentage: bet.percentage,
         stake: stake,
+        timestamp: serverTimestamp, // Explicitly set server timestamp
       });
       await newBet.save();
 
@@ -88,11 +91,14 @@ router.post("/place", async (req, res) => {
       message = "Bet copied and placed successfully in your account. Matches added.";
     } else {
       // Update existing bet for the logged-in user
+      // Explicitly set timestamp to server time
+      const serverTimestamp = new Date();
       updatedBet = await BetModel.findByIdAndUpdate(
         betId,
         { 
           stake,
-          date: currentTime // ✅ update to current time
+          date: currentTime, // ✅ update to current server time
+          timestamp: serverTimestamp, // Update timestamp to current server time
         },
         { new: true }
       );
@@ -179,6 +185,8 @@ router.post("/place-from-collapsed", async (req, res) => {
     }, 1).toFixed(2);
 
     // Create new bet
+    // Explicitly set timestamp to server time to ensure consistency
+    const serverTimestamp = new Date();
     const newBet = new BetModel({
       userId,
       betCode,
@@ -187,6 +195,7 @@ router.post("/place-from-collapsed", async (req, res) => {
       bookingCode: finalBookingCode,
       stake,
       percentage: 10, // Default percentage
+      timestamp: serverTimestamp, // Explicitly set server timestamp
     });
     const savedBet = await newBet.save();
 
