@@ -345,29 +345,23 @@ router.post("/login", async (req, res) => {
               }
               // Continue with login (device will be created/updated above)
             } else {
-              // For premium users with 2 devices, return RESET_REQUEST_NEEDED code
-              if (isPremium && activeDevices.length >= 2) {
+              // For both premium and basic users, return RESET_REQUEST_NEEDED code
+              // Premium: 2 devices, Basic: 1 device
+              if (activeDevices.length >= maxDevices) {
+                const message = isPremium 
+                  ? "This account is already active on two devices"
+                  : "This account is already active on another device";
+                
                 return res.status(403).json({
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
-                  message: "This account is already active on two devices",
-                  subscriptionType: "Premium",
-                  maxDevices: 2,
+                  message: message,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
                   currentDevices: activeDevices.length,
                   deviceInfo: deviceData,
                 });
               }
-              
-              // For basic users or other cases, return confirmation request
-              return res.status(403).json({
-                success: false,
-                message: `Basic accounts can only be logged in on one device. Would you like to send a request to admin to change your device?`,
-                requiresConfirmation: true,
-                subscriptionType: user.subscription || "Basic",
-                maxDevices: maxDevices,
-                currentDevices: activeDevices.length,
-                deviceInfo: deviceData,
-              });
             }
           }
 
