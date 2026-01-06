@@ -229,7 +229,9 @@ router.post("/login", async (req, res) => {
           platform: deviceData.platform
         });
 
-        // Check if device already exists (by deviceId or by matching device info)
+        // Check if device already exists (STRICTLY by deviceId only to prevent device limit bypass)
+        // We only match by deviceId to ensure each physical device is tracked separately
+        // This prevents Device 2 from matching Device 1's device and bypassing the limit check
         let existingDevice = await Device.findOne({
           userId: user._id,
           deviceId: deviceData.deviceId,
@@ -237,27 +239,9 @@ router.post("/login", async (req, res) => {
         
         console.log(`[Login] Device lookup by deviceId (${deviceData.deviceId}):`, existingDevice ? 'Found' : 'Not found');
         
-        // If not found by deviceId, try to find by platform and deviceName (for devices created before modelName was added)
-        if (!existingDevice && deviceData.platform) {
-          existingDevice = await Device.findOne({
-            userId: user._id,
-            platform: deviceData.platform,
-            deviceName: deviceData.deviceName,
-          }).sort({ lastLoginAt: -1 }); // Get the most recent one
-          
-          console.log(`[Login] Device lookup by platform+deviceName:`, existingDevice ? `Found (${existingDevice._id})` : 'Not found');
-        }
-        
-        // If still not found, try to find any iOS device for this user (last resort)
-        if (!existingDevice && deviceData.platform === 'ios') {
-          existingDevice = await Device.findOne({
-            userId: user._id,
-            platform: 'ios',
-            isActive: true,
-          }).sort({ lastLoginAt: -1 }); // Get the most recent active iOS device
-          
-          console.log(`[Login] Device lookup by platform only (iOS):`, existingDevice ? `Found (${existingDevice._id})` : 'Not found');
-        }
+        // NOTE: Removed platform+deviceName and platform-only lookups to prevent device limit bypass
+        // Each device must have a unique deviceId. If deviceId changes, it's treated as a new device
+        // and the device limit check will properly block it if the limit is reached.
 
         if (existingDevice) {
           // Update existing device - ensure modelName and modelId are included
