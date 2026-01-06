@@ -293,8 +293,12 @@ router.post("/login", async (req, res) => {
             isActive: true,
           });
 
+          console.log(`[Login] Device limit check - Active devices: ${activeDevices.length}, Max: ${maxDevices}, isPremium: ${isPremium}`);
+
           // Check if user has reached the device limit
           if (activeDevices.length >= maxDevices) {
+            console.log(`[Login] Device limit reached! Blocking new device creation.`);
+            
             // Check if there's already a pending request for this device
             const existingRequest = await DeviceRequest.findOne({
               userId: user._id,
@@ -303,6 +307,7 @@ router.post("/login", async (req, res) => {
             });
 
             if (existingRequest) {
+              console.log(`[Login] Pending request found for device ${deviceData.deviceId}`);
               return res.status(403).json({
                 success: false,
                 message: "A device change request is already pending for this device. Please wait for admin approval.",
@@ -320,6 +325,7 @@ router.post("/login", async (req, res) => {
             });
 
             if (approvedRequest) {
+              console.log(`[Login] Approved request found for device ${deviceData.deviceId}`);
               // Device was approved, allow login and create the device
               // Check if device already exists (might have been created during approval)
               const approvedDevice = await Device.findOne({
@@ -342,36 +348,36 @@ router.post("/login", async (req, res) => {
                 approvedDevice.lastLoginAt = new Date();
                 approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
                 await approvedDevice.save();
+                console.log(`[Login] Approved device updated - Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
                 // Don't mark as new device - it already existed
               }
               // Continue with login (device will be created/updated above)
             } else {
               // For both premium and basic users, return RESET_REQUEST_NEEDED code
               // Premium: 2 devices, Basic: 1 device
-              if (activeDevices.length >= maxDevices) {
-                const message = isPremium 
-                  ? "This account is already active on two devices"
-                  : "This account is already active on another device";
-                
-                return res.status(403).json({
-                  success: false,
-                  code: "RESET_REQUEST_NEEDED",
-                  message: message,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
-                  maxDevices: maxDevices,
-                  currentDevices: activeDevices.length,
-                  deviceInfo: deviceData,
-                });
-              }
+              const message = isPremium 
+                ? "This account is already active on two devices"
+                : "This account is already active on another device";
+              
+              console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
+              return res.status(403).json({
+                success: false,
+                code: "RESET_REQUEST_NEEDED",
+                message: message,
+                subscriptionType: isPremium ? "Premium" : "Basic",
+                maxDevices: maxDevices,
+                currentDevices: activeDevices.length,
+                deviceInfo: deviceData,
+              });
             }
+          } else {
+            // Create new device (allowed if within limit)
+            // Store activeDevices.length BEFORE creating new device for token update logic
+            activeDevicesCountBeforeNewDevice = activeDevices.length;
+            await Device.create(deviceData);
+            console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+            isNewDevice = true; // Mark as new device
           }
-
-          // Create new device (allowed if within limit)
-          // Store activeDevices.length BEFORE creating new device for token update logic
-          activeDevicesCountBeforeNewDevice = activeDevices.length;
-          await Device.create(deviceData);
-          console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
-          isNewDevice = true; // Mark as new device
         }
       } catch (deviceError) {
         console.error("Device tracking error:", deviceError);
