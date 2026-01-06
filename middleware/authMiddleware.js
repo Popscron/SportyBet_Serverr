@@ -19,8 +19,22 @@ const authMiddleware = async (req, res, next) => {
     const isPremium = user.subscription === "Premium" && 
                      (!user.expiry || new Date(user.expiry) > new Date());
     
+    // ============================================================================
+    // OLD BEHAVIOR (Currently Active):
+    // - For Basic users: Check if token matches user.token in database
+    // - When Basic user logs in on Device 2, token is updated in database
+    // - Device 1's token no longer matches, so it gets logged out
+    // - Result: Only the most recent device stays logged in
+    //
+    // NEW BEHAVIOR (Currently Disabled):
+    // - For Basic users: Device limit is enforced before token generation
+    // - Device 2 is blocked with RESET_REQUEST_NEEDED before login succeeds
+    // - Device 1's token remains valid, so it stays logged in
+    // - This check can be removed if new behavior is re-enabled
+    //
+    // ============================================================================
     // For premium users, allow multiple tokens (don't check user.token)
-    // For basic users, check token to ensure only one device is logged in
+    // For basic users, check token to ensure only one device is logged in (OLD BEHAVIOR)
     if (!isPremium && user.token && user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }

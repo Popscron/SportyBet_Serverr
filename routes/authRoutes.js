@@ -279,89 +279,116 @@ router.post("/login", async (req, res) => {
 
           console.log(`[Login] Device limit check - Active devices: ${activeDevices.length}, Max: ${maxDevices}, isPremium: ${isPremium}`);
 
+          // ============================================================================
+          // 🔒 DEVICE LIMIT FEATURE - COMMENTED OUT (RESTORED OLD BEHAVIOR)
+          // ============================================================================
+          // 
+          // NEW BEHAVIOR (Currently Disabled):
+          // - Basic users: Limited to 1 active device
+          // - Premium users: Limited to 2 active devices
+          // - When limit is reached, returns RESET_REQUEST_NEEDED code
+          // - User sees modal to request device reset from admin
+          // - Device 1 stays logged in, Device 2 is blocked
+          //
+          // OLD BEHAVIOR (Currently Active):
+          // - Basic users: Can log in on multiple devices
+          // - Premium users: Can log in on 2 devices
+          // - When Basic user logs in on Device 2, token is updated in database
+          // - Device 1's token becomes invalid (authMiddleware checks token match)
+          // - Device 1 gets logged out automatically, only Device 2 stays active
+          // - This is enforced by: authMiddleware.js line 24 (token check for Basic users)
+          // - And: authRoutes.js line 384-386 (always updates token for Basic users)
+          //
+          // TO RE-ENABLE NEW BEHAVIOR:
+          // 1. Uncomment the code block below (lines starting with "if (activeDevices.length >= maxDevices)")
+          // 2. Comment out or remove the "Create new device" block at the bottom
+          // 3. Make sure frontend handles RESET_REQUEST_NEEDED code properly
+          //
+          // ============================================================================
+
           // Check if user has reached the device limit
-          if (activeDevices.length >= maxDevices) {
-            console.log(`[Login] Device limit reached! Blocking new device creation.`);
-            
-            // Check if there's already a pending request for this device
-            const existingRequest = await DeviceRequest.findOne({
-              userId: user._id,
-              "deviceInfo.deviceId": deviceData.deviceId,
-              status: "pending",
-            });
+          // if (activeDevices.length >= maxDevices) {
+          //   console.log(`[Login] Device limit reached! Blocking new device creation.`);
+          //   
+          //   // Check if there's already a pending request for this device
+          //   const existingRequest = await DeviceRequest.findOne({
+          //     userId: user._id,
+          //     "deviceInfo.deviceId": deviceData.deviceId,
+          //     status: "pending",
+          //   });
 
-            if (existingRequest) {
-              console.log(`[Login] Pending request found for device ${deviceData.deviceId}`);
-              return res.status(403).json({
-                success: false,
-                message: "A device change request is already pending for this device. Please wait for admin approval.",
-                hasPendingRequest: true,
-                requestId: existingRequest._id,
-                requiresApproval: true,
-              });
-            }
+          //   if (existingRequest) {
+          //     console.log(`[Login] Pending request found for device ${deviceData.deviceId}`);
+          //     return res.status(403).json({
+          //       success: false,
+          //       message: "A device change request is already pending for this device. Please wait for admin approval.",
+          //       hasPendingRequest: true,
+          //       requestId: existingRequest._id,
+          //       requiresApproval: true,
+          //     });
+          //   }
 
-            // Check if there's an approved request for this device
-            const approvedRequest = await DeviceRequest.findOne({
-              userId: user._id,
-              "deviceInfo.deviceId": deviceData.deviceId,
-              status: "approved",
-            });
+          //   // Check if there's an approved request for this device
+          //   const approvedRequest = await DeviceRequest.findOne({
+          //     userId: user._id,
+          //     "deviceInfo.deviceId": deviceData.deviceId,
+          //     status: "approved",
+          //   });
 
-            if (approvedRequest) {
-              console.log(`[Login] Approved request found for device ${deviceData.deviceId}`);
-              // Device was approved, allow login and create the device
-              // Check if device already exists (might have been created during approval)
-              const approvedDevice = await Device.findOne({
-                userId: user._id,
-                deviceId: deviceData.deviceId,
-              });
+          //   if (approvedRequest) {
+          //     console.log(`[Login] Approved request found for device ${deviceData.deviceId}`);
+          //     // Device was approved, allow login and create the device
+          //     // Check if device already exists (might have been created during approval)
+          //     const approvedDevice = await Device.findOne({
+          //       userId: user._id,
+          //       deviceId: deviceData.deviceId,
+          //     });
 
-              if (!approvedDevice) {
-                // Create the device since it was approved
-                await Device.create({
-                  ...deviceData,
-                  isActive: true,
-                  loginCount: 1,
-                });
-                console.log(`[Login] Approved device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
-                isNewDevice = true; // Mark as new device
-              } else {
-                // Update existing approved device
-                approvedDevice.isActive = true;
-                approvedDevice.lastLoginAt = new Date();
-                approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
-                await approvedDevice.save();
-                console.log(`[Login] Approved device updated - Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
-                // Don't mark as new device - it already existed
-              }
-              // Continue with login (device will be created/updated above)
-            } else {
-              // For both premium and basic users, return RESET_REQUEST_NEEDED code
-              // Premium: 2 devices, Basic: 1 device
-              const message = isPremium 
-                ? "This account is already active on two devices"
-                : "This account is already active on another device";
-              
-              console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
-              return res.status(403).json({
-                success: false,
-                code: "RESET_REQUEST_NEEDED",
-                message: message,
-                subscriptionType: isPremium ? "Premium" : "Basic",
-                maxDevices: maxDevices,
-                currentDevices: activeDevices.length,
-                deviceInfo: deviceData,
-              });
-            }
-          } else {
-            // Create new device (allowed if within limit)
+          //     if (!approvedDevice) {
+          //       // Create the device since it was approved
+          //       await Device.create({
+          //         ...deviceData,
+          //         isActive: true,
+          //         loginCount: 1,
+          //       });
+          //       console.log(`[Login] Approved device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+          //       isNewDevice = true; // Mark as new device
+          //     } else {
+          //       // Update existing approved device
+          //       approvedDevice.isActive = true;
+          //       approvedDevice.lastLoginAt = new Date();
+          //       approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
+          //       await approvedDevice.save();
+          //       console.log(`[Login] Approved device updated - Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
+          //       // Don't mark as new device - it already existed
+          //     }
+          //     // Continue with login (device will be created/updated above)
+          //   } else {
+          //     // For both premium and basic users, return RESET_REQUEST_NEEDED code
+          //     // Premium: 2 devices, Basic: 1 device
+          //     const message = isPremium 
+          //       ? "This account is already active on two devices"
+          //       : "This account is already active on another device";
+          //     
+          //     console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
+          //     return res.status(403).json({
+          //       success: false,
+          //       code: "RESET_REQUEST_NEEDED",
+          //       message: message,
+          //       subscriptionType: isPremium ? "Premium" : "Basic",
+          //       maxDevices: maxDevices,
+          //       currentDevices: activeDevices.length,
+          //       deviceInfo: deviceData,
+          //     });
+          //   }
+          // } else {
+            // OLD BEHAVIOR: Always create new device (no limit check for Basic users)
             // Store activeDevices.length BEFORE creating new device for token update logic
             activeDevicesCountBeforeNewDevice = activeDevices.length;
             await Device.create(deviceData);
-            console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
+            console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices} (OLD BEHAVIOR: No limit enforcement)`);
             isNewDevice = true; // Mark as new device
-          }
+          // }
         }
       } catch (deviceError) {
         console.error("Device tracking error:", deviceError);
@@ -375,14 +402,26 @@ router.post("/login", async (req, res) => {
     });
 
     // ✅ Save token in DB
-    // For Basic users: Always update token (they can only be on one device)
-    // For Premium users: Only update if it's the first device or token is null
+    // OLD BEHAVIOR (Currently Active):
+    // - For Basic users: Always update token (this causes previous devices to be logged out)
+    // - When Basic user logs in on Device 2, token is updated
+    // - Device 1's token no longer matches user.token in database
+    // - authMiddleware.js line 24 checks token match for Basic users
+    // - Device 1 gets "Session expired" error and is logged out
+    // - Result: Only the most recent device stays logged in
+    //
+    // NEW BEHAVIOR (Currently Disabled):
+    // - For Basic users: Only update token if it's the first device
+    // - This prevents overwriting tokens when device limit is enforced
+    // - Device 1 stays logged in, Device 2 is blocked before token is generated
+    //
     const currentUser = await User.findById(user._id);
     const isPremium = currentUser.subscription === "Premium" && 
                      (!currentUser.expiry || new Date(currentUser.expiry) > new Date());
     
     if (!isPremium) {
-      // Basic users: Always update token (single device only)
+      // OLD BEHAVIOR: Basic users - Always update token (causes previous devices to logout)
+      // This is what enforces the "only most recent device stays logged in" behavior
       await User.findByIdAndUpdate(user._id, { token });
     } else {
       // Premium users: Only update token if:
