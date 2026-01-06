@@ -279,7 +279,8 @@ router.post("/login", async (req, res) => {
           console.log(`[Login] Updating device ${existingDevice._id} with modelName: ${updateData.modelName}`);
           const updatedDevice = await Device.findByIdAndUpdate(existingDevice._id, updateData, { new: true });
           console.log(`[Login] Device updated successfully. New modelName: ${updatedDevice?.modelName}`);
-          // Don't update user token for existing device - keep other devices logged in
+          // For existing devices, mark as not new device (token will be updated later if needed)
+          isNewDevice = false;
         } else {
           // Check user subscription type and expiry
           const isPremium = user.subscription === "Premium" && 
@@ -383,24 +384,30 @@ router.post("/login", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // ✅ Save token in DB only if:
-    // 1. It's a new device AND it's the first device (no other active devices before this one)
-    // 2. OR the token is null (first time login after token was cleared)
-    // This allows multiple devices to stay logged in simultaneously
+    // ✅ Save token in DB
+    // For Basic users: Always update token (they can only be on one device)
+    // For Premium users: Only update if it's the first device or token is null
     const currentUser = await User.findById(user._id);
+    const isPremium = currentUser.subscription === "Premium" && 
+                     (!currentUser.expiry || new Date(currentUser.expiry) > new Date());
     
-    // Only update token if:
-    // - It's null (no token exists) - always update
-    // - OR it's a new device AND there were no active devices before (first device)
-    // This prevents overwriting tokens when multiple devices are active
-    if (!currentUser.token) {
-      // Always update if token is null
+    if (!isPremium) {
+      // Basic users: Always update token (single device only)
       await User.findByIdAndUpdate(user._id, { token });
-    } else if (isNewDevice && activeDevicesCountBeforeNewDevice === 0) {
-      // For new devices, only update token if it's the first device (no active devices before)
-      await User.findByIdAndUpdate(user._id, { token });
+    } else {
+      // Premium users: Only update token if:
+      // - It's null (no token exists) - always update
+      // - OR it's a new device AND there were no active devices before (first device)
+      // This prevents overwriting tokens when multiple devices are active
+      if (!currentUser.token) {
+        // Always update if token is null
+        await User.findByIdAndUpdate(user._id, { token });
+      } else if (isNewDevice && activeDevicesCountBeforeNewDevice === 0) {
+        // For new devices, only update token if it's the first device (no active devices before)
+        await User.findByIdAndUpdate(user._id, { token });
+      }
+      // For existing devices or new devices when there are already active devices, don't update token
     }
-    // For existing devices or new devices when there are already active devices, don't update token
 
     res.status(200).json({
       success: true,
