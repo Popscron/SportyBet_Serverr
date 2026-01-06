@@ -11,7 +11,17 @@ const authMiddleware = async (req, res, next) => {
     const decoded = jwt.verify(token, SECRET_KEY);
     const user = await User.findById(decoded.id);
 
-    if (!user || user.token !== token) {
+    if (!user) {
+      return res.status(401).json({ error: "Session expired. Please log in again." });
+    }
+
+    // Check if user is premium and has active subscription
+    const isPremium = user.subscription === "Premium" && 
+                     (!user.expiry || new Date(user.expiry) > new Date());
+    
+    // For premium users, allow multiple tokens (don't check user.token)
+    // For basic users, check token to ensure only one device is logged in
+    if (!isPremium && user.token && user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 

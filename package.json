@@ -34,7 +34,8 @@
     "check-accounts": "node scripts/checkSpindictAccounts.js",
     "renew-account": "node scripts/renew-account.js",
     "create-test-account": "node scripts/create-test-account.js",
-    "create-test-account-vercel": "node scripts/create-test-account-vercel.js"
+    "create-test-account-vercel": "node scripts/create-test-account-vercel.js",
+    "test-two-device": "node scripts/test-two-device-session.js"
   },
   "author": "",
   "license": "ISC",

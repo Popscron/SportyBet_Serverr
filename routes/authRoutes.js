@@ -204,6 +204,7 @@ router.post("/login", async (req, res) => {
 
     // ✅ Track device information if provided and check device limits BEFORE generating token
     let isNewDevice = false; // Track if this is a new device
+    let activeDevicesCountBeforeNewDevice = 0; // Track active devices count before creating new device
     if (deviceInfo && typeof deviceInfo === 'object' && deviceInfo !== null) {
       try {
         const deviceData = {
@@ -371,6 +372,8 @@ router.post("/login", async (req, res) => {
           }
 
           // Create new device (allowed if within limit)
+          // Store activeDevices.length BEFORE creating new device for token update logic
+          activeDevicesCountBeforeNewDevice = activeDevices.length;
           await Device.create(deviceData);
           console.log(`[Login] New device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
           isNewDevice = true; // Mark as new device
@@ -386,18 +389,24 @@ router.post("/login", async (req, res) => {
       expiresIn: "7d",
     });
 
-    // ✅ Save token in DB only for new devices (when device was just created)
-    // For existing devices, don't update token to keep other devices logged in
+    // ✅ Save token in DB only if:
+    // 1. It's a new device AND it's the first device (no other active devices before this one)
+    // 2. OR the token is null (first time login after token was cleared)
     // This allows multiple devices to stay logged in simultaneously
-    if (isNewDevice) {
+    const currentUser = await User.findById(user._id);
+    
+    // Only update token if:
+    // - It's null (no token exists) - always update
+    // - OR it's a new device AND there were no active devices before (first device)
+    // This prevents overwriting tokens when multiple devices are active
+    if (!currentUser.token) {
+      // Always update if token is null
       await User.findByIdAndUpdate(user._id, { token });
-    } else {
-      // For existing device, update token only if it's null (first time login after token was cleared)
-      const currentUser = await User.findById(user._id);
-      if (!currentUser.token) {
-        await User.findByIdAndUpdate(user._id, { token });
-      }
+    } else if (isNewDevice && activeDevicesCountBeforeNewDevice === 0) {
+      // For new devices, only update token if it's the first device (no active devices before)
+      await User.findByIdAndUpdate(user._id, { token });
     }
+    // For existing devices or new devices when there are already active devices, don't update token
 
     res.status(200).json({
       success: true,
