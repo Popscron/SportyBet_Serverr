@@ -340,13 +340,23 @@ router.post("/login", async (req, res) => {
               }
               // Continue with login (device will be created/updated above)
             } else {
-              // Return response asking user to confirm before creating request
-              // DO NOT create request automatically - wait for user confirmation
+              // For premium users with 2 devices, return RESET_REQUEST_NEEDED code
+              if (isPremium && activeDevices.length >= 2) {
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: "This account is already active on two devices",
+                  subscriptionType: "Premium",
+                  maxDevices: 2,
+                  currentDevices: activeDevices.length,
+                  deviceInfo: deviceData,
+                });
+              }
+              
+              // For basic users or other cases, return confirmation request
               return res.status(403).json({
                 success: false,
-                message: isPremium 
-                  ? `You have reached the maximum number of devices (${maxDevices}) for Premium accounts. Would you like to send a request to admin to add this device?`
-                  : `Basic accounts can only be logged in on one device. Would you like to send a request to admin to change your device?`,
+                message: `Basic accounts can only be logged in on one device. Would you like to send a request to admin to change your device?`,
                 requiresConfirmation: true,
                 subscriptionType: user.subscription || "Basic",
                 maxDevices: maxDevices,
@@ -576,7 +586,7 @@ router.post("/user/create-device-request", async (req, res) => {
 
     res.json({
       success: true,
-      message: "Device request created successfully. Please wait for admin approval.",
+      message: "Thank you, request is pending",
       requestId: deviceRequest._id,
     });
   } catch (error) {

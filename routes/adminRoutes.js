@@ -151,6 +151,42 @@ router.get("/device-requests/:id", async (req, res) => {
   }
 });
 
+// @route   GET /api/admin/device-requests/:id/devices
+// @desc    Get active devices for a device request (Admin only)
+// @access  Private (Admin)
+router.get("/device-requests/:id/devices", async (req, res) => {
+  try {
+    const request = await DeviceRequest.findById(req.params.id)
+      .populate("userId", "_id");
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Device request not found",
+      });
+    }
+
+    // Get current active devices for this user
+    const activeDevices = await Device.find({
+      userId: request.userId._id,
+      isActive: true,
+    }).sort({ lastLoginAt: -1 });
+
+    res.json({
+      success: true,
+      data: activeDevices,
+      count: activeDevices.length,
+    });
+  } catch (error) {
+    console.error("Get active devices error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching active devices",
+      error: error.message,
+    });
+  }
+});
+
 // @route   PUT /api/admin/device-requests/:id/approve
 // @desc    Approve a device request (Admin only)
 // @access  Private (Admin)
@@ -185,19 +221,37 @@ router.put("/device-requests/:id/approve", async (req, res) => {
       isActive: true,
     });
 
-    // If user has reached max devices, deactivate the oldest one
-    if (activeDevices.length >= maxDevices) {
-      const oldestDevice = await Device.findOne({
-        userId: user._id,
-        isActive: true,
-      }).sort({ lastLoginAt: 1 });
+    // Get deviceIdToLogout from request body (admin selects which device to logout)
+    const { deviceIdToLogout } = req.body;
 
-      if (oldestDevice) {
-        await Device.findByIdAndUpdate(oldestDevice._id, {
-          isActive: false,
-          lastLogoutAt: new Date(),
+    // If user has reached max devices, logout the selected device
+    if (activeDevices.length >= maxDevices) {
+      if (!deviceIdToLogout) {
+        return res.status(400).json({
+          success: false,
+          message: "deviceIdToLogout is required when user has reached device limit",
         });
       }
+
+      // Find the device to logout by deviceId
+      const deviceToLogout = await Device.findOne({
+        userId: user._id,
+        deviceId: deviceIdToLogout,
+        isActive: true,
+      });
+
+      if (!deviceToLogout) {
+        return res.status(404).json({
+          success: false,
+          message: "Device to logout not found or is not active",
+        });
+      }
+
+      // Deactivate the selected device
+      await Device.findByIdAndUpdate(deviceToLogout._id, {
+        isActive: false,
+        lastLogoutAt: new Date(),
+      });
     }
 
     // Create the new device
