@@ -15,6 +15,35 @@ const DeviceRequest = require("../models/DeviceRequest");
 const router = express.Router();
 const SECRET_KEY = "your_secret_key"; // Change this to a secure secret
 
+// Helper function to get subscription info
+const getSubscriptionInfo = (user) => {
+  const isActive = !user.expiry || new Date(user.expiry) > new Date();
+  const subscription = user.subscription || "Basic";
+  
+  let isPremium = false;
+  let isPremiumPlus = false;
+  let maxDevices = 1;
+  
+  if (isActive) {
+    if (subscription === "Premium Plus") {
+      isPremiumPlus = true;
+      maxDevices = 3; // Premium Plus gets 3 devices
+    } else if (subscription === "Premium") {
+      isPremium = true;
+      maxDevices = 2; // Premium gets 2 devices
+    }
+    // Basic gets 1 device (default)
+  }
+  
+  return {
+    subscription,
+    isPremium,
+    isPremiumPlus,
+    maxDevices,
+    isActive
+  };
+};
+
 // Generate Random 6-Digit OTP
 const generateOtp = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
@@ -267,9 +296,9 @@ router.post("/login", async (req, res) => {
           isNewDevice = false;
         } else {
           // Check user subscription type and expiry
-          const isPremium = user.subscription === "Premium" && 
-                           (!user.expiry || new Date(user.expiry) > new Date());
-          const maxDevices = isPremium ? 2 : 1;
+          const subInfo = getSubscriptionInfo(user);
+          const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+          const maxDevices = subInfo.maxDevices;
 
           // Count active devices (excluding the current device being added)
           const activeDevices = await Device.find({
@@ -416,8 +445,8 @@ router.post("/login", async (req, res) => {
     // - Device 1 stays logged in, Device 2 is blocked before token is generated
     //
     const currentUser = await User.findById(user._id);
-    const isPremium = currentUser.subscription === "Premium" && 
-                     (!currentUser.expiry || new Date(currentUser.expiry) > new Date());
+    const subInfo = getSubscriptionInfo(currentUser);
+    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
     
     if (!isPremium) {
       // OLD BEHAVIOR: Basic users - Always update token (causes previous devices to logout)
@@ -481,9 +510,9 @@ router.get("/user/devices", authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const user = await User.findById(userId);
 
-    const isPremium = user.subscription === "Premium" && 
-                     (!user.expiry || new Date(user.expiry) > new Date());
-    const maxDevices = isPremium ? 2 : 1;
+    const subInfo = getSubscriptionInfo(user);
+    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const maxDevices = subInfo.maxDevices;
 
     const devices = await Device.find({ userId })
       .sort({ lastLoginAt: -1 })
@@ -587,9 +616,9 @@ router.post("/user/create-device-request", async (req, res) => {
       isActive: true,
     });
 
-    const isPremium = user.subscription === "Premium" && 
-                     (!user.expiry || new Date(user.expiry) > new Date());
-    const maxDevices = isPremium ? 2 : 1;
+    const subInfo = getSubscriptionInfo(user);
+    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const maxDevices = subInfo.maxDevices;
 
     // Prepare device data with safe property access
     let deviceData;

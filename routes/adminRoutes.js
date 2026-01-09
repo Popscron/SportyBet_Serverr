@@ -211,9 +211,9 @@ router.put("/device-requests/:id/approve", async (req, res) => {
     }
 
     const user = request.userId;
-    const isPremium = user.subscription === "Premium" && 
-                     (!user.expiry || new Date(user.expiry) > new Date());
-    const maxDevices = isPremium ? 2 : 1;
+    const subInfo = getSubscriptionInfo(user);
+    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const maxDevices = subInfo.maxDevices;
 
     // Get current active devices
     const activeDevices = await Device.find({

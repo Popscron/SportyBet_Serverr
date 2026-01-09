@@ -379,10 +379,26 @@ router.post("/withdraw", async (req, res) => {
     try {
       const user = await User.findById(userId);
       if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
-        // Use the same message format as shown in the app notification
-        const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv \nCredit Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} . Available...`;
+        // Get virtual phone balance (currentBalance) from NotificationBalance
+        let virtualBalance = 0;
+        try {
+          const notificationBalance = await NotificationBalance.findOne({ userId });
+          virtualBalance = notificationBalance ? (notificationBalance.currentBalance || 0) : 0;
+        } catch (balanceError) {
+          console.error("Error fetching notification balance:", balanceError);
+          virtualBalance = 0;
+        }
+        
+        // Generate 12-digit transaction ID
+        const transactionId = Math.floor(100000000000 + Math.random() * 900000000000).toString();
         
         if (user.notificationType === "third-party") {
+          // Real SMS format with detailed information
+          // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {currentBalance}. Available Balance: GHS {virtualBalance}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
+          const currentBalanceValue = parseFloat(userBalance.amount || 0).toFixed(2);
+          const availableBalanceValue = parseFloat(virtualBalance || 0).toFixed(2);
+          const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv Credit Current Balance: ${currencyType} ${currentBalanceValue}. Available Balance: ${currencyType} ${availableBalanceValue}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: ${transactionId}. TRANSACTION FEE: 0.00`;
+          
           // Check if user has points
           if (user.smsPoints > 0) {
             const smsResult = await sendSMS(user.notificationPhoneNumber, message);
@@ -403,7 +419,8 @@ router.post("/withdraw", async (req, res) => {
             console.log("⚠️ User has no SMS points. Skipping SMS notification.");
           }
         } else {
-          // Inbuilt SMS (free, unlimited) - no points deducted
+          // Inbuilt SMS (free, unlimited) - use simple format
+          const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv \nCredit Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} . Available...`;
           const smsResult = await sendSMS(user.notificationPhoneNumber, message);
           if (smsResult.success) {
             console.log("✅ SMS sent via inbuilt service for withdrawal");
