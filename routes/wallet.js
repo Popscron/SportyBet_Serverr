@@ -389,8 +389,10 @@ router.post("/withdraw", async (req, res) => {
           virtualBalance = 0;
         }
         
-        // Generate 12-digit transaction ID
-        const transactionId = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+        // Generate 12-digit transaction ID starting with 727
+        // Format: 727XXXXXXXXX (727 + 9 random digits)
+        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+        const transactionId = `727${randomDigits}`;
         
         if (user.notificationType === "third-party") {
           // Real SMS format with detailed information
