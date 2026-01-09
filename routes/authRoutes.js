@@ -1235,8 +1235,8 @@ router.get("/user/sms-points", async (req, res) => {
       data: {
         smsPoints: user.smsPoints || 0,
         notificationPhoneNumber: user.notificationPhoneNumber,
-        notificationPhoneVerified: user.notificationPhoneVerified,
-        notificationType: user.notificationType
+        notificationPhoneVerified: user.notificationPhoneVerified || false,
+        notificationType: user.notificationType // Return actual value from database
       }
     });
   } catch (error) {
