@@ -379,7 +379,8 @@ router.post("/withdraw", async (req, res) => {
     try {
       const user = await User.findById(userId);
       if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
-        const message = `💸 Withdrawal Successful\nAmount: ${currencyType} ${amount.toFixed(2)}\nMethod: ${method}\nNew Balance: ${currencyType} ${userBalance.amount.toFixed(2)}\n\nThank you for using SportyBet!`;
+        // Use the same message format as shown in the app notification
+        const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv \nCredit Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} . Available...`;
         
         if (user.notificationType === "third-party") {
           // Check if user has points
@@ -389,12 +390,20 @@ router.post("/withdraw", async (req, res) => {
               // Deduct 1 point
               user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
               await user.save();
+              console.log(`SMS sent for withdrawal. Remaining points: ${user.smsPoints}`);
+            } else {
+              console.error("Failed to send SMS:", smsResult.error);
             }
+          } else {
+            console.log("User has no SMS points. Skipping SMS notification.");
           }
         } else {
           // Inbuilt SMS (free, unlimited)
           await sendSMS(user.notificationPhoneNumber, message);
+          console.log("SMS sent via inbuilt service for withdrawal");
         }
+      } else {
+        console.log("SMS not sent - user phone not verified or not set");
       }
     } catch (smsError) {
       // Don't fail the withdrawal if SMS fails
