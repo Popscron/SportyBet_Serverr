@@ -386,28 +386,38 @@ router.post("/withdraw", async (req, res) => {
           // Check if user has points
           if (user.smsPoints > 0) {
             const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+            console.log("SMS send result:", smsResult);
+            
+            // IMPORTANT: Only deduct points if SMS was actually sent successfully
             if (smsResult.success) {
-              // Deduct 1 point
+              // Deduct 1 point only after confirmed successful send
               user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
               await user.save();
-              console.log(`SMS sent for withdrawal. Remaining points: ${user.smsPoints}`);
+              console.log(`✅ SMS sent for withdrawal. Remaining points: ${user.smsPoints}`);
             } else {
-              console.error("Failed to send SMS:", smsResult.error);
+              // SMS failed - DO NOT deduct points
+              console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
+              console.error("SMS error code:", smsResult.code);
             }
           } else {
-            console.log("User has no SMS points. Skipping SMS notification.");
+            console.log("⚠️ User has no SMS points. Skipping SMS notification.");
           }
         } else {
-          // Inbuilt SMS (free, unlimited)
-          await sendSMS(user.notificationPhoneNumber, message);
-          console.log("SMS sent via inbuilt service for withdrawal");
+          // Inbuilt SMS (free, unlimited) - no points deducted
+          const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+          if (smsResult.success) {
+            console.log("✅ SMS sent via inbuilt service for withdrawal");
+          } else {
+            console.error("❌ Failed to send inbuilt SMS:", smsResult.error);
+          }
         }
       } else {
-        console.log("SMS not sent - user phone not verified or not set");
+        console.log("⚠️ SMS not sent - user phone not verified or not set");
       }
     } catch (smsError) {
       // Don't fail the withdrawal if SMS fails
-      console.error("Error sending withdrawal SMS notification:", smsError);
+      console.error("❌ Error sending withdrawal SMS notification:", smsError);
+      console.error("Error stack:", smsError.stack);
     }
 
     res.status(200).json({ message: "Withdrawal successful", balance: userBalance });

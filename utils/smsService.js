@@ -46,16 +46,25 @@ const sendSMS = async (to, message) => {
       to: to
     });
 
-    console.log(`✅ SMS sent successfully to ${to}. SID: ${result.sid}`);
+    // Check if SMS was actually sent successfully
+    // Twilio status can be: queued, sending, sent, failed, delivered, undelivered
+    const isSuccess = result.status !== 'failed' && result.status !== 'undelivered';
+    
+    if (isSuccess) {
+      console.log(`✅ SMS sent successfully to ${to}. SID: ${result.sid}, Status: ${result.status}`);
+    } else {
+      console.error(`❌ SMS failed to send to ${to}. Status: ${result.status}, SID: ${result.sid}`);
+    }
     
     return {
-      success: true,
+      success: isSuccess,
       messageSid: result.sid,
       status: result.status,
       to: result.to,
       from: result.from,
       body: result.body,
-      dateCreated: result.dateCreated
+      dateCreated: result.dateCreated,
+      error: isSuccess ? null : `SMS status: ${result.status}`
     };
   } catch (error) {
     console.error('❌ Error sending SMS:', error.message);
