@@ -439,7 +439,7 @@ router.post("/login", async (req, res) => {
     //
     const currentUser = await User.findById(user._id);
     const subInfo = getSubscriptionInfo(currentUser);
-    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const isPremium = subInfo.isPremium;
     
     if (!isPremium) {
       // OLD BEHAVIOR: Basic users - Always update token (causes previous devices to logout)
@@ -504,7 +504,7 @@ router.get("/user/devices", authMiddleware, async (req, res) => {
     const user = await User.findById(userId);
 
     const subInfo = getSubscriptionInfo(user);
-    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const isPremium = subInfo.isPremium;
     const maxDevices = subInfo.maxDevices;
 
     const devices = await Device.find({ userId })
@@ -610,7 +610,7 @@ router.post("/user/create-device-request", async (req, res) => {
     });
 
     const subInfo = getSubscriptionInfo(user);
-    const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+    const isPremium = subInfo.isPremium;
     const maxDevices = subInfo.maxDevices;
 
     // Prepare device data with safe property access
