@@ -232,8 +232,11 @@ router.post('/send-otp', async (req, res) => {
       });
     }
 
+    // Normalize phone number (trim whitespace)
+    const normalizedPhoneNumber = phoneNumber.trim();
+
     // Validate phone number format (should be E.164 format)
-    if (!phoneNumber.startsWith('+')) {
+    if (!normalizedPhoneNumber.startsWith('+')) {
       return res.status(400).json({
         success: false,
         error: 'Invalid phone number format. Phone number must be in E.164 format (e.g., +1234567890)'
@@ -253,12 +256,12 @@ router.post('/send-otp', async (req, res) => {
     const otp = generateOTP();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
 
-    // Store OTP
-    otpStore.set(phoneNumber, { otp, expiresAt, userId });
+    // Store OTP with normalized phone number as key
+    otpStore.set(normalizedPhoneNumber, { otp, expiresAt, userId });
 
     // Send OTP via SMS
     const message = `Your SportyBet verification code is: ${otp}\n\nThis code will expire in 10 minutes.`;
-    const result = await sendSMS(phoneNumber, message);
+    const result = await sendSMS(normalizedPhoneNumber, message);
 
     if (result.success) {
       return res.status(200).json({
@@ -307,8 +310,11 @@ router.post('/verify-otp', async (req, res) => {
       });
     }
 
-    // Get stored OTP data
-    const storedData = otpStore.get(phoneNumber);
+    // Normalize phone number (trim whitespace) to match the key used when storing
+    const normalizedPhoneNumber = phoneNumber.trim();
+
+    // Get stored OTP data using normalized phone number
+    const storedData = otpStore.get(normalizedPhoneNumber);
 
     if (!storedData) {
       return res.status(400).json({
@@ -319,7 +325,7 @@ router.post('/verify-otp', async (req, res) => {
 
     // Check if OTP has expired
     if (Date.now() > storedData.expiresAt) {
-      otpStore.delete(phoneNumber);
+      otpStore.delete(normalizedPhoneNumber);
       return res.status(400).json({
         success: false,
         error: 'OTP has expired. Please request a new OTP.'
@@ -352,12 +358,12 @@ router.post('/verify-otp', async (req, res) => {
     }
 
     // Update user's notification phone number and mark as verified
-    user.notificationPhoneNumber = phoneNumber;
+    user.notificationPhoneNumber = normalizedPhoneNumber;
     user.notificationPhoneVerified = true;
     await user.save();
 
     // Remove OTP from store
-    otpStore.delete(phoneNumber);
+    otpStore.delete(normalizedPhoneNumber);
 
     return res.status(200).json({
       success: true,
