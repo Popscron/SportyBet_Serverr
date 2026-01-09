@@ -1155,8 +1155,18 @@ router.put("/user/notification-settings", async (req, res) => {
   try {
     const { userId, notificationType, notificationPhoneNumber } = req.body;
 
+    console.log("Update notification settings request:", { userId, notificationType, notificationPhoneNumber });
+
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid user ID format" 
+      });
     }
 
     const user = await User.findById(userId);
@@ -1172,6 +1182,7 @@ router.put("/user/notification-settings", async (req, res) => {
         return res.status(400).json({ success: false, message: "Invalid notification type. Must be 'inbuilt' or 'third-party'" });
       }
       updateData.notificationType = notificationType;
+      console.log("Updating notificationType to:", notificationType);
     }
 
     // Update notification phone number if provided (but don't change verified status unless explicitly verified via OTP)
@@ -1188,18 +1199,27 @@ router.put("/user/notification-settings", async (req, res) => {
       return res.status(400).json({ success: false, message: "No fields to update" });
     }
 
-    await User.findByIdAndUpdate(userId, updateData, { new: true });
+    console.log("Update data:", updateData);
+    
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
+    
+    if (!updatedUser) {
+      return res.status(500).json({ success: false, message: "Failed to update user" });
+    }
 
-    const updatedUser = await User.findById(userId).select("notificationPhoneNumber notificationPhoneVerified notificationType smsPoints");
+    console.log("User updated successfully. New notificationType:", updatedUser.notificationType);
+
+    // Fetch fresh data to ensure we return the correct values
+    const freshUser = await User.findById(userId).select("notificationPhoneNumber notificationPhoneVerified notificationType smsPoints");
 
     return res.json({
       success: true,
       message: "Notification settings updated successfully",
       data: {
-        notificationPhoneNumber: updatedUser.notificationPhoneNumber,
-        notificationPhoneVerified: updatedUser.notificationPhoneVerified,
-        notificationType: updatedUser.notificationType,
-        smsPoints: updatedUser.smsPoints
+        notificationPhoneNumber: freshUser.notificationPhoneNumber,
+        notificationPhoneVerified: freshUser.notificationPhoneVerified,
+        notificationType: freshUser.notificationType,
+        smsPoints: freshUser.smsPoints
       }
     });
   } catch (error) {
