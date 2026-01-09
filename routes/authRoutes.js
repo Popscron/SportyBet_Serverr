@@ -21,24 +21,17 @@ const getSubscriptionInfo = (user) => {
   const subscription = user.subscription || "Basic";
   
   let isPremium = false;
-  let isPremiumPlus = false;
   let maxDevices = 1;
   
-  if (isActive) {
-    if (subscription === "Premium Plus") {
-      isPremiumPlus = true;
-      maxDevices = 3; // Premium Plus gets 3 devices
-    } else if (subscription === "Premium") {
-      isPremium = true;
-      maxDevices = 2; // Premium gets 2 devices
-    }
-    // Basic gets 1 device (default)
+  if (isActive && subscription === "Premium") {
+    isPremium = true;
+    maxDevices = 2; // Premium gets 2 devices
   }
+  // Basic gets 1 device (default)
   
   return {
     subscription,
     isPremium,
-    isPremiumPlus,
     maxDevices,
     isActive
   };
@@ -297,7 +290,7 @@ router.post("/login", async (req, res) => {
         } else {
           // Check user subscription type and expiry
           const subInfo = getSubscriptionInfo(user);
-          const isPremium = subInfo.isPremium || subInfo.isPremiumPlus;
+          const isPremium = subInfo.isPremium;
           const maxDevices = subInfo.maxDevices;
 
           // Count active devices (excluding the current device being added)
