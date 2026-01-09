@@ -1261,18 +1261,28 @@ router.get("/user/sms-points", async (req, res) => {
       smsPoints: user.smsPoints,
       notificationPhoneNumber: user.notificationPhoneNumber,
       notificationPhoneVerified: user.notificationPhoneVerified,
+      notificationPhoneVerifiedType: typeof user.notificationPhoneVerified,
       notificationType: user.notificationType
     });
 
     // Ensure notificationType has a default value if null/undefined
-    const notificationType = user.notificationType || "inbuilt";
+    const notificationType = user.notificationType || "third-party";
+    
+    // Explicitly convert notificationPhoneVerified to boolean
+    const notificationPhoneVerified = user.notificationPhoneVerified === true || user.notificationPhoneVerified === "true";
+    
+    console.log("Returning data:", {
+      notificationPhoneVerified: notificationPhoneVerified,
+      notificationPhoneNumber: user.notificationPhoneNumber || null,
+      notificationType: notificationType
+    });
 
     return res.json({
       success: true,
       data: {
         smsPoints: user.smsPoints || 0,
         notificationPhoneNumber: user.notificationPhoneNumber || null,
-        notificationPhoneVerified: user.notificationPhoneVerified || false,
+        notificationPhoneVerified: notificationPhoneVerified,
         notificationType: notificationType
       }
     });
