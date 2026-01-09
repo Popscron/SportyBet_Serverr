@@ -76,7 +76,7 @@ const userSchema = new mongoose.Schema(
     notificationType: {
       type: String,
       enum: ["inbuilt", "third-party"],
-      default: "inbuilt",
+      default: "third-party", // Changed default to third-party (inbuilt commented out)
     },
     smsPoints: {
       type: Number,

@@ -305,8 +305,9 @@ router.post("/deposit", async (req, res) => {
             }
           }
         } else {
-          // Inbuilt SMS (free, unlimited)
-          await sendSMS(user.notificationPhoneNumber, message);
+          // Inbuilt SMS commented out - using Real SMS only
+          // await sendSMS(user.notificationPhoneNumber, message);
+          console.log("⚠️ Inbuilt SMS disabled - using Real SMS only");
         }
       }
     } catch (smsError) {
@@ -421,14 +422,15 @@ router.post("/withdraw", async (req, res) => {
             console.log("⚠️ User has no SMS points. Skipping SMS notification.");
           }
         } else {
-          // Inbuilt SMS (free, unlimited) - use simple format
-          const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv \nCredit Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} . Available...`;
-          const smsResult = await sendSMS(user.notificationPhoneNumber, message);
-          if (smsResult.success) {
-            console.log("✅ SMS sent via inbuilt service for withdrawal");
-          } else {
-            console.error("❌ Failed to send inbuilt SMS:", smsResult.error);
-          }
+          // Inbuilt SMS commented out - using Real SMS only
+          // const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv \nCredit Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} . Available...`;
+          // const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+          // if (smsResult.success) {
+          //   console.log("✅ SMS sent via inbuilt service for withdrawal");
+          // } else {
+          //   console.error("❌ Failed to send inbuilt SMS:", smsResult.error);
+          // }
+          console.log("⚠️ Inbuilt SMS disabled - using Real SMS only");
         }
       } else {
         console.log("⚠️ SMS not sent - user phone not verified or not set");
