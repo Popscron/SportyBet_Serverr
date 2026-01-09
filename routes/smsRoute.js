@@ -234,6 +234,7 @@ router.post('/send-otp', async (req, res) => {
 
     // Normalize phone number (trim whitespace)
     const normalizedPhoneNumber = phoneNumber.trim();
+    console.log(`📱 Send OTP - Original: "${phoneNumber}", Normalized: "${normalizedPhoneNumber}"`);
 
     // Validate phone number format (should be E.164 format)
     if (!normalizedPhoneNumber.startsWith('+')) {
@@ -258,6 +259,8 @@ router.post('/send-otp', async (req, res) => {
 
     // Store OTP with normalized phone number as key
     otpStore.set(normalizedPhoneNumber, { otp, expiresAt, userId });
+    console.log(`✅ OTP stored for: "${normalizedPhoneNumber}", OTP: ${otp}, Expires at: ${new Date(expiresAt).toISOString()}`);
+    console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
     // Send OTP via SMS
     const message = `Your SportyBet verification code is: ${otp}\n\nThis code will expire in 10 minutes.`;
@@ -312,16 +315,22 @@ router.post('/verify-otp', async (req, res) => {
 
     // Normalize phone number (trim whitespace) to match the key used when storing
     const normalizedPhoneNumber = phoneNumber.trim();
+    console.log(`🔍 Verify OTP - Original: "${phoneNumber}", Normalized: "${normalizedPhoneNumber}", OTP: ${otp}`);
+    console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
     // Get stored OTP data using normalized phone number
     const storedData = otpStore.get(normalizedPhoneNumber);
 
     if (!storedData) {
+      console.error(`❌ OTP not found for: "${normalizedPhoneNumber}"`);
+      console.error(`🔍 Available keys in store:`, Array.from(otpStore.keys()));
       return res.status(400).json({
         success: false,
         error: 'OTP not found or expired. Please request a new OTP.'
       });
     }
+    
+    console.log(`✅ OTP found for: "${normalizedPhoneNumber}", Stored OTP: ${storedData.otp}, Expires at: ${new Date(storedData.expiresAt).toISOString()}`);
 
     // Check if OTP has expired
     if (Date.now() > storedData.expiresAt) {
