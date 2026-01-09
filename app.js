@@ -29,6 +29,7 @@ const sportyHeroRoutes = require("./routes/sportyHeroRoute");
 const bankAccountRoutes = require("./routes/bankAccountRoute");
 const adminRoutes = require("./routes/adminRoutes.js");
 const nextUpdateRoutes = require("./routes/nextUpdateRoute.js");
+const smsRoutes = require("./routes/smsRoute.js");
 const path = require("path");
 const cookieParser = require("cookie-parser");
 
@@ -148,6 +149,7 @@ app.use("/api", maxBonusRoutes);
 app.use("/api", bankAccountRoutes);
 app.use("/api", nextUpdateRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/sms", smsRoutes);
 
 // Spindict routes
 const spindictRoutes = require("./routes/spindictRoutes");

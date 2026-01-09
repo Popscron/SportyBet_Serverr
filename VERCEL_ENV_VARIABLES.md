@@ -47,7 +47,22 @@ FRONTEND_URL=https://admingh.online
 
 ## 🟢 OPTIONAL (Add if needed)
 
-### 6. Email Service (SMTP) - For payment confirmation emails
+### 6. Twilio SMS Service - For sending SMS notifications
+
+If you want to send SMS notifications:
+
+```
+TWILIO_ACCOUNT_SID=your_account_sid_here
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+1234567890
+```
+
+**Note:** 
+- Replace `+1234567890` with your actual Twilio phone number
+- Get your phone number from Twilio Console → Phone Numbers
+- Phone number must be in E.164 format (starts with `+`)
+
+### 7. Email Service (SMTP) - For payment confirmation emails
 
 If you want to send payment confirmation emails:
 
