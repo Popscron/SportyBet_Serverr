@@ -292,17 +292,29 @@ router.post("/deposit", async (req, res) => {
     try {
       const user = await User.findById(userId);
       if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
-        const message = `💰 Deposit Successful\nAmount: ${currencyType} ${amount.toFixed(2)}\nNew Balance: ${currencyType} ${balance.amount.toFixed(2)}\n\nThank you for using SportyBet!`;
+        // Generate 12-digit transaction ID starting with 727
+        // Format: 727XXXXXXXXX (727 + 9 random digits)
+        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+        const transactionId = `727${randomDigits}`;
+        
+        // Real SMS format matching frontend
+        const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${balance.amount.toFixed(2)} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
         
         if (user.notificationType === "third-party") {
           // Check if user has points
           if (user.smsPoints > 0) {
             const smsResult = await sendSMS(user.notificationPhoneNumber, message);
             if (smsResult.success) {
-              // Deduct 1 point
+              // Deduct 1 point only after confirmed successful send
               user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
               await user.save();
+              console.log(`✅ SMS sent for deposit. Remaining points: ${user.smsPoints}`);
+            } else {
+              // SMS failed - DO NOT deduct points
+              console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
             }
+          } else {
+            console.log("⚠️ User has no SMS points. Skipping SMS notification.");
           }
         } else {
           // Inbuilt SMS commented out - using Real SMS only
