@@ -252,6 +252,11 @@ router.put("/device-requests/:id/approve", async (req, res) => {
         isActive: false,
         lastLogoutAt: new Date(),
       });
+      
+      // Remove user's token to logout the old device
+      // This ensures the old device cannot use the token anymore
+      await User.findByIdAndUpdate(user._id, { token: null });
+      console.log(`✅ Logged out old device ${deviceIdToLogout} and removed token for user ${user._id}`);
     }
 
     // Create the new device
