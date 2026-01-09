@@ -288,48 +288,130 @@ router.post("/deposit", async (req, res) => {
       metadata: { currencyType },
     });
 
-    // Send SMS notification for deposit
-    try {
-      const user = await User.findById(userId);
-      if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
-        // Generate 12-digit transaction ID starting with 727
-        // Format: 727XXXXXXXXX (727 + 9 random digits)
-        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
-        const transactionId = `727${randomDigits}`;
-        
-        // Real SMS format matching frontend
-        const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${balance.amount.toFixed(2)} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
-        
-        if (user.notificationType === "third-party") {
-          // Check if user has points
-          if (user.smsPoints > 0) {
-            const smsResult = await sendSMS(user.notificationPhoneNumber, message);
-            if (smsResult.success) {
-              // Deduct 1 point only after confirmed successful send
-              user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
-              await user.save();
-              console.log(`✅ SMS sent for deposit. Remaining points: ${user.smsPoints}`);
-            } else {
-              // SMS failed - DO NOT deduct points
-              console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
-            }
-          } else {
-            console.log("⚠️ User has no SMS points. Skipping SMS notification.");
-          }
-        } else {
-          // Inbuilt SMS commented out - using Real SMS only
-          // await sendSMS(user.notificationPhoneNumber, message);
-          console.log("⚠️ Inbuilt SMS disabled - using Real SMS only");
-        }
-      }
-    } catch (smsError) {
-      // Don't fail the deposit if SMS fails
-      console.error("Error sending deposit SMS notification:", smsError);
-    }
+    // SMS notification for deposit - commented out, will be sent separately after USSD flow completes
+    // SMS is now sent via /deposit/send-sms endpoint when success screen shows
+    // try {
+    //   const user = await User.findById(userId);
+    //   if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
+    //     // Generate 12-digit transaction ID starting with 727
+    //     // Format: 727XXXXXXXXX (727 + 9 random digits)
+    //     const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+    //     const transactionId = `727${randomDigits}`;
+    //     
+    //     // Real SMS format matching frontend
+    //     const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${balance.amount.toFixed(2)} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
+    //     
+    //     if (user.notificationType === "third-party") {
+    //       // Check if user has points
+    //       if (user.smsPoints > 0) {
+    //         const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+    //         if (smsResult.success) {
+    //           // Deduct 1 point only after confirmed successful send
+    //           user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
+    //           await user.save();
+    //           console.log(`✅ SMS sent for deposit. Remaining points: ${user.smsPoints}`);
+    //         } else {
+    //           // SMS failed - DO NOT deduct points
+    //           console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
+    //         }
+    //       } else {
+    //         console.log("⚠️ User has no SMS points. Skipping SMS notification.");
+    //       }
+    //     } else {
+    //       // Inbuilt SMS commented out - using Real SMS only
+    //       // await sendSMS(user.notificationPhoneNumber, message);
+    //       console.log("⚠️ Inbuilt SMS disabled - using Real SMS only");
+    //     }
+    //   }
+    // } catch (smsError) {
+    //   // Don't fail the deposit if SMS fails
+    //   console.error("Error sending deposit SMS notification:", smsError);
+    // }
 
     res.status(200).json({ message: "Deposit successful", balance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+// 📱 POST /api/wallet/deposit/send-sms
+// Send SMS notification for deposit after USSD flow completes (when success screen shows)
+router.post("/deposit/send-sms", async (req, res) => {
+  const { userId, amount, currencyType = "GHS" } = req.body;
+
+  if (!userId || !amount || amount <= 0) {
+    return res.status(400).json({ success: false, message: "Invalid deposit data" });
+  }
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (!user.notificationPhoneNumber || !user.notificationPhoneVerified) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User phone number not verified" 
+      });
+    }
+
+    // Get current balance
+    const userBalance = await UserBalance.findOne({ userId });
+    if (!userBalance) {
+      return res.status(404).json({ success: false, message: "User balance not found" });
+    }
+
+    // Generate 12-digit transaction ID starting with 727
+    const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+    const transactionId = `727${randomDigits}`;
+    
+    // Real SMS format matching frontend
+    const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
+    
+    if (user.notificationType === "third-party") {
+      // Check if user has points
+      if (user.smsPoints > 0) {
+        const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+        if (smsResult.success) {
+          // Deduct 1 point only after confirmed successful send
+          user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
+          await user.save();
+          console.log(`✅ SMS sent for deposit. Remaining points: ${user.smsPoints}`);
+          return res.status(200).json({ 
+            success: true, 
+            message: "SMS sent successfully",
+            transactionId 
+          });
+        } else {
+          // SMS failed - DO NOT deduct points
+          console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
+          return res.status(500).json({ 
+            success: false, 
+            message: "Failed to send SMS",
+            error: smsResult.error 
+          });
+        }
+      } else {
+        console.log("⚠️ User has no SMS points. Skipping SMS notification.");
+        return res.status(400).json({ 
+          success: false, 
+          message: "User has no SMS points" 
+        });
+      }
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User notification type is not third-party" 
+      });
+    }
+  } catch (error) {
+    console.error("Error sending deposit SMS notification:", error);
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 });
 
