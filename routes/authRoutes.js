@@ -1150,6 +1150,93 @@ router.post("/update-profile", async (req, res) => {
   }
 });
 
+// Update notification settings
+router.put("/user/notification-settings", async (req, res) => {
+  try {
+    const { userId, notificationType, notificationPhoneNumber } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const updateData = {};
+    
+    // Update notification type if provided
+    if (notificationType !== undefined) {
+      if (!["inbuilt", "third-party"].includes(notificationType)) {
+        return res.status(400).json({ success: false, message: "Invalid notification type. Must be 'inbuilt' or 'third-party'" });
+      }
+      updateData.notificationType = notificationType;
+    }
+
+    // Update notification phone number if provided (but don't change verified status unless explicitly verified via OTP)
+    if (notificationPhoneNumber !== undefined) {
+      // Only update if it's different from current
+      if (notificationPhoneNumber !== user.notificationPhoneNumber) {
+        // If phone number changes, reset verified status (user needs to verify again)
+        updateData.notificationPhoneNumber = notificationPhoneNumber;
+        updateData.notificationPhoneVerified = false;
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: "No fields to update" });
+    }
+
+    await User.findByIdAndUpdate(userId, updateData, { new: true });
+
+    const updatedUser = await User.findById(userId).select("notificationPhoneNumber notificationPhoneVerified notificationType smsPoints");
+
+    return res.json({
+      success: true,
+      message: "Notification settings updated successfully",
+      data: {
+        notificationPhoneNumber: updatedUser.notificationPhoneNumber,
+        notificationPhoneVerified: updatedUser.notificationPhoneVerified,
+        notificationType: updatedUser.notificationType,
+        smsPoints: updatedUser.smsPoints
+      }
+    });
+  } catch (error) {
+    console.error("Error updating notification settings:", error);
+    return res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+});
+
+// Get SMS points
+router.get("/user/sms-points", async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required" });
+    }
+
+    const user = await User.findById(userId).select("smsPoints notificationPhoneNumber notificationPhoneVerified notificationType");
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        smsPoints: user.smsPoints || 0,
+        notificationPhoneNumber: user.notificationPhoneNumber,
+        notificationPhoneVerified: user.notificationPhoneVerified,
+        notificationType: user.notificationType
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching SMS points:", error);
+    return res.status(500).json({ success: false, message: "Server error", error: error.message });
+  }
+});
+
 // Update user fields (subscription, username, expiry)
 router.put("/admin/updateUserFields", async (req, res) => {
   try {

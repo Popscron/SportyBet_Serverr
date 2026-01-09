@@ -412,5 +412,55 @@ router.put("/devices/:deviceId/deactivate", async (req, res) => {
   }
 });
 
+// Load SMS points for a user
+router.post("/load-sms-points", async (req, res) => {
+  try {
+    const { userId, points } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
+      });
+    }
+
+    if (points === undefined || points === null || points < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid points amount is required (must be >= 0)"
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Update SMS points
+    user.smsPoints = (user.smsPoints || 0) + Number(points);
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: `Successfully loaded ${points} SMS points`,
+      data: {
+        userId: user._id,
+        smsPoints: user.smsPoints,
+        pointsAdded: Number(points)
+      }
+    });
+  } catch (error) {
+    console.error("Error loading SMS points:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error loading SMS points",
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;
 

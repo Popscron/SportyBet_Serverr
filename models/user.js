@@ -64,6 +64,25 @@ const userSchema = new mongoose.Schema(
       enum: ["sportybet", "spindict"],
       default: "sportybet",
     },
+    // SMS Notification Settings
+    notificationPhoneNumber: {
+      type: String,
+      default: null,
+    },
+    notificationPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+    notificationType: {
+      type: String,
+      enum: ["inbuilt", "third-party"],
+      default: "inbuilt",
+    },
+    smsPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );

@@ -9,6 +9,7 @@ const Winning = require("../models/winningModel");
 const User = require("../models/user");
 const NotificationBalance = require("../models/NotificationBalance");
 const TransactionHistory = require("../models/TransactionHistory");
+const { sendSMS } = require("../utils/smsService");
 
 const TYPE_LABELS = {
   Deposit: "Deposits",
@@ -287,6 +288,32 @@ router.post("/deposit", async (req, res) => {
       metadata: { currencyType },
     });
 
+    // Send SMS notification for deposit
+    try {
+      const user = await User.findById(userId);
+      if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
+        const message = `💰 Deposit Successful\nAmount: ${currencyType} ${amount.toFixed(2)}\nNew Balance: ${currencyType} ${balance.amount.toFixed(2)}\n\nThank you for using SportyBet!`;
+        
+        if (user.notificationType === "third-party") {
+          // Check if user has points
+          if (user.smsPoints > 0) {
+            const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+            if (smsResult.success) {
+              // Deduct 1 point
+              user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
+              await user.save();
+            }
+          }
+        } else {
+          // Inbuilt SMS (free, unlimited)
+          await sendSMS(user.notificationPhoneNumber, message);
+        }
+      }
+    } catch (smsError) {
+      // Don't fail the deposit if SMS fails
+      console.error("Error sending deposit SMS notification:", smsError);
+    }
+
     res.status(200).json({ message: "Deposit successful", balance });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -347,6 +374,32 @@ router.post("/withdraw", async (req, res) => {
       eventDate: withdrawal.date,
       metadata: { method, currencyType },
     });
+
+    // Send SMS notification for withdrawal
+    try {
+      const user = await User.findById(userId);
+      if (user && user.notificationPhoneNumber && user.notificationPhoneVerified) {
+        const message = `💸 Withdrawal Successful\nAmount: ${currencyType} ${amount.toFixed(2)}\nMethod: ${method}\nNew Balance: ${currencyType} ${userBalance.amount.toFixed(2)}\n\nThank you for using SportyBet!`;
+        
+        if (user.notificationType === "third-party") {
+          // Check if user has points
+          if (user.smsPoints > 0) {
+            const smsResult = await sendSMS(user.notificationPhoneNumber, message);
+            if (smsResult.success) {
+              // Deduct 1 point
+              user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
+              await user.save();
+            }
+          }
+        } else {
+          // Inbuilt SMS (free, unlimited)
+          await sendSMS(user.notificationPhoneNumber, message);
+        }
+      }
+    } catch (smsError) {
+      // Don't fail the withdrawal if SMS fails
+      console.error("Error sending withdrawal SMS notification:", smsError);
+    }
 
     res.status(200).json({ message: "Withdrawal successful", balance: userBalance });
   } catch (error) {
