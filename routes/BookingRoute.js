@@ -23,7 +23,7 @@ const formatDate = (date) => {
 ;
 
 router.post("/place", async (req, res) => {
-  const { betId, stake, userId } = req.body; // userId is the logged-in user's ID
+  const { betId, stake, userId, deviceTime, deviceTimestamp } = req.body; // userId is the logged-in user's ID
 
   if (!betId || !stake || stake <= 0 || !userId) {
     return res.status(400).json({ message: "Invalid input" });
@@ -49,21 +49,22 @@ router.post("/place", async (req, res) => {
 
     let updatedBet;
     let message = "Bet placed successfully. Matches updated.";
-    const currentTime = formatDate(new Date()); // ✅ current time
+    // Use device time if provided, otherwise fallback to server time
+    const currentTime = deviceTime || formatDate(new Date());
+    const betTimestamp = deviceTimestamp ? new Date(deviceTimestamp) : new Date();
 
     if (bet.userId.toString() !== userId) {
       // Copy bet to the logged-in user's account
-      // Explicitly set timestamp to server time
-      const serverTimestamp = new Date();
+      // Use device timestamp if provided, otherwise use server time
       const newBet = new BetModel({
         userId: userId,
         betCode: bet.betCode,
-        date: currentTime, // ✅ store current server time
+        date: currentTime, // ✅ store device time
         odd: bet.odd,
         bookingCode: bet.bookingCode,
         percentage: bet.percentage,
         stake: stake,
-        timestamp: serverTimestamp, // Explicitly set server timestamp
+        timestamp: betTimestamp, // Use device timestamp
       });
       await newBet.save();
 
@@ -91,14 +92,13 @@ router.post("/place", async (req, res) => {
       message = "Bet copied and placed successfully in your account. Matches added.";
     } else {
       // Update existing bet for the logged-in user
-      // Explicitly set timestamp to server time
-      const serverTimestamp = new Date();
+      // Use device timestamp if provided, otherwise use server time
       updatedBet = await BetModel.findByIdAndUpdate(
         betId,
         { 
           stake,
-          date: currentTime, // ✅ update to current server time
-          timestamp: serverTimestamp, // Update timestamp to current server time
+          date: currentTime, // ✅ update to device time
+          timestamp: betTimestamp, // Use device timestamp
         },
         { new: true }
       );
@@ -141,7 +141,7 @@ const formatOneDayAgo = () => {
 
 // New endpoint to place bet from collapsed modal (create new bet with matches)
 router.post("/place-from-collapsed", async (req, res) => {
-  const { userId, stake, matches, totalOdd, bookingCode } = req.body;
+  const { userId, stake, matches, totalOdd, bookingCode, deviceTime, deviceTimestamp } = req.body;
 
   if (!userId || !stake || stake <= 0) {
     return res.status(400).json({ message: "Invalid input: userId and stake are required" });
@@ -177,7 +177,9 @@ router.post("/place-from-collapsed", async (req, res) => {
 
     const betCode = generateCode(6);
     const finalBookingCode = bookingCode || generateCode(6);
-    const currentTime = formatDate(new Date());
+    // Use device time if provided, otherwise fallback to server time
+    const currentTime = deviceTime || formatDate(new Date());
+    const betTimestamp = deviceTimestamp ? new Date(deviceTimestamp) : new Date();
 
     // Calculate total odd if not provided
     const calculatedOdd = totalOdd || matches.reduce((acc, match) => {
@@ -185,17 +187,16 @@ router.post("/place-from-collapsed", async (req, res) => {
     }, 1).toFixed(2);
 
     // Create new bet
-    // Explicitly set timestamp to server time to ensure consistency
-    const serverTimestamp = new Date();
+    // Use device timestamp if provided, otherwise use server time
     const newBet = new BetModel({
       userId,
       betCode,
-      date: currentTime,
+      date: currentTime, // Use device time
       odd: calculatedOdd.toString(),
       bookingCode: finalBookingCode,
       stake,
       percentage: 10, // Default percentage
-      timestamp: serverTimestamp, // Explicitly set server timestamp
+      timestamp: betTimestamp, // Use device timestamp
     });
     const savedBet = await newBet.save();
 
