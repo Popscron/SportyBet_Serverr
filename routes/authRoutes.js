@@ -1289,10 +1289,22 @@ router.get("/user/sms-points", async (req, res) => {
   } catch (error) {
     console.error("Error fetching SMS points:", error);
     console.error("Error stack:", error.stack);
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    
+    // Return more detailed error in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error.message 
+      : 'Internal server error';
+    
     return res.status(500).json({ 
       success: false, 
       message: "Server error", 
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      error: errorMessage,
+      ...(process.env.NODE_ENV === 'development' && { 
+        stack: error.stack,
+        name: error.name 
+      })
     });
   }
 });
