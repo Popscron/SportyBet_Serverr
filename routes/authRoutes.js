@@ -1217,6 +1217,14 @@ router.get("/user/sms-points", async (req, res) => {
       return res.status(400).json({ success: false, message: "User ID is required" });
     }
 
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid user ID format" 
+      });
+    }
+
     const user = await User.findById(userId).select("smsPoints notificationPhoneNumber notificationPhoneVerified notificationType");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -1233,7 +1241,11 @@ router.get("/user/sms-points", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching SMS points:", error);
-    return res.status(500).json({ success: false, message: "Server error", error: error.message });
+    return res.status(500).json({ 
+      success: false, 
+      message: "Server error", 
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
