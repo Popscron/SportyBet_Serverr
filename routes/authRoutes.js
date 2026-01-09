@@ -1233,12 +1233,15 @@ router.get("/user/sms-points", async (req, res) => {
   try {
     const { userId } = req.query;
 
+    console.log("Get SMS points request:", { userId });
+
     if (!userId) {
       return res.status(400).json({ success: false, message: "User ID is required" });
     }
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(userId)) {
+      console.error("Invalid user ID format:", userId);
       return res.status(400).json({ 
         success: false, 
         message: "Invalid user ID format" 
@@ -1246,21 +1249,35 @@ router.get("/user/sms-points", async (req, res) => {
     }
 
     const user = await User.findById(userId).select("smsPoints notificationPhoneNumber notificationPhoneVerified notificationType");
+    
     if (!user) {
+      console.error("User not found:", userId);
       return res.status(404).json({ success: false, message: "User not found" });
     }
+
+    console.log("User found:", {
+      id: user._id,
+      smsPoints: user.smsPoints,
+      notificationPhoneNumber: user.notificationPhoneNumber,
+      notificationPhoneVerified: user.notificationPhoneVerified,
+      notificationType: user.notificationType
+    });
+
+    // Ensure notificationType has a default value if null/undefined
+    const notificationType = user.notificationType || "inbuilt";
 
     return res.json({
       success: true,
       data: {
         smsPoints: user.smsPoints || 0,
-        notificationPhoneNumber: user.notificationPhoneNumber,
+        notificationPhoneNumber: user.notificationPhoneNumber || null,
         notificationPhoneVerified: user.notificationPhoneVerified || false,
-        notificationType: user.notificationType // Return actual value from database
+        notificationType: notificationType
       }
     });
   } catch (error) {
     console.error("Error fetching SMS points:", error);
+    console.error("Error stack:", error.stack);
     return res.status(500).json({ 
       success: false, 
       message: "Server error", 
