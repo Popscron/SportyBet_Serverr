@@ -7,6 +7,8 @@ const WithdrawSchema = new mongoose.Schema({
   status: { type: String, enum: ["pending", "completed"], default: "completed" },
   currencyType: { type: String, enum: ["GHS", "NGN"], default: "NGN" },
   date: { type: Date, default: Date.now },
+  transactionId: { type: String, default: null }, // Store transaction ID to prevent duplicate SMS
+  smsSent: { type: Boolean, default: false }, // Track if SMS was sent for this withdrawal
 });
 
 module.exports = mongoose.model("Withdraw", WithdrawSchema);

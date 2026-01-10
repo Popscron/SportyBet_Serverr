@@ -430,8 +430,39 @@ router.post("/withdraw", async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    // Record withdrawal
-    const withdrawal = await Withdraw.create({ userId, amount, method, currencyType });
+    // Check for duplicate withdrawal within last 30 seconds (idempotency check)
+    const thirtySecondsAgo = new Date(Date.now() - 30000);
+    const recentWithdrawal = await Withdraw.findOne({
+      userId,
+      amount: parseFloat(amount),
+      method,
+      currencyType,
+      date: { $gte: thirtySecondsAgo }
+    });
+
+    if (recentWithdrawal) {
+      console.log(`⚠️ Duplicate withdrawal detected for user ${userId}, amount ${amount}. Returning existing withdrawal.`);
+      // Return the existing withdrawal without processing again
+      return res.status(200).json({ 
+        message: "Withdrawal successful", 
+        balance: userBalance,
+        isDuplicate: true // Flag to indicate this is a duplicate
+      });
+    }
+
+    // Generate transaction ID before creating withdrawal
+    const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+    const transactionId = `727${randomDigits}`;
+
+    // Record withdrawal with transaction ID
+    const withdrawal = await Withdraw.create({ 
+      userId, 
+      amount, 
+      method, 
+      currencyType,
+      transactionId,
+      smsSent: false
+    });
 
     // Update user balances
     userBalance.amount -= amount;
@@ -484,12 +515,13 @@ router.post("/withdraw", async (req, res) => {
           virtualBalance = 0;
         }
         
-        // Generate 12-digit transaction ID starting with 727
-        // Format: 727XXXXXXXXX (727 + 9 random digits)
-        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
-        const transactionId = `727${randomDigits}`;
+        // Use the transaction ID from withdrawal record (prevents duplicate SMS)
+        const transactionId = withdrawal.transactionId;
         
-        if (user.notificationType === "third-party") {
+        // Check if SMS was already sent for this withdrawal (prevent duplicate SMS)
+        if (withdrawal.smsSent) {
+          console.log(`⚠️ SMS already sent for withdrawal ${withdrawal._id}. Skipping duplicate SMS.`);
+        } else if (user.notificationType === "third-party") {
           // Real SMS format with detailed information
           // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {virtualBalance}. Available Balance: GHS {virtualBalance}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
           // Both current balance and available balance use virtual phone balance
@@ -506,7 +538,12 @@ router.post("/withdraw", async (req, res) => {
               // Deduct 1 point only after confirmed successful send
               user.smsPoints = Math.max(0, (user.smsPoints || 0) - 1);
               await user.save();
-              console.log(`✅ SMS sent for withdrawal. Remaining points: ${user.smsPoints}`);
+              
+              // Mark SMS as sent in withdrawal record to prevent duplicates
+              withdrawal.smsSent = true;
+              await withdrawal.save();
+              
+              console.log(`✅ SMS sent for withdrawal ${withdrawal._id}. Transaction ID: ${transactionId}. Remaining points: ${user.smsPoints}`);
             } else {
               // SMS failed - DO NOT deduct points
               console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
