@@ -2,8 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { sendSMS, sendBulkSMS, verifyTwilioConfig } = require('../utils/smsService');
 const User = require('../models/user');
+const Otp = require('../models/otp');
 
 // In-memory OTP storage (phoneNumber -> { otp, expiresAt, userId })
+// NOTE: For Vercel serverless, we also use database storage as backup
 // In production, consider using Redis for better scalability
 const otpStore = new Map();
 
@@ -256,10 +258,29 @@ router.post('/send-otp', async (req, res) => {
     // Generate OTP
     const otp = generateOTP();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes expiry
+    const expiresAtDate = new Date(expiresAt);
 
-    // Store OTP with normalized phone number as key
+    // Store OTP in both in-memory (for fast access) and database (for serverless persistence)
     otpStore.set(normalizedPhoneNumber, { otp, expiresAt, userId });
-    console.log(`✅ OTP stored for: "${normalizedPhoneNumber}", OTP: ${otp}, Expires at: ${new Date(expiresAt).toISOString()}`);
+    
+    // Also store in database for serverless environments (Vercel)
+    try {
+      await Otp.findOneAndUpdate(
+        { mobileNumber: normalizedPhoneNumber },
+        { 
+          otp, 
+          expiresAt: expiresAtDate,
+          userId: userId.toString() // Store userId as string for reference
+        },
+        { upsert: true, new: true }
+      );
+      console.log(`✅ OTP stored in database for: "${normalizedPhoneNumber}"`);
+    } catch (dbError) {
+      console.error(`⚠️ Failed to store OTP in database:`, dbError.message);
+      // Continue anyway - in-memory storage might work if same instance
+    }
+    
+    console.log(`✅ OTP stored for: "${normalizedPhoneNumber}", OTP: ${otp}, Expires at: ${expiresAtDate.toISOString()}`);
     console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
     // Send OTP via SMS
@@ -318,8 +339,35 @@ router.post('/verify-otp', async (req, res) => {
     console.log(`🔍 Verify OTP - Original: "${phoneNumber}", Normalized: "${normalizedPhoneNumber}", OTP: ${otp}`);
     console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
-    // Get stored OTP data using normalized phone number
-    const storedData = otpStore.get(normalizedPhoneNumber);
+    // Try to get OTP from in-memory store first (faster)
+    let storedData = otpStore.get(normalizedPhoneNumber);
+    
+    // If not in memory, try database (for serverless environments)
+    if (!storedData) {
+      console.log(`🔍 OTP not in memory, checking database...`);
+      try {
+        const dbOtp = await Otp.findOne({ mobileNumber: normalizedPhoneNumber });
+        if (dbOtp) {
+          // Check if expired
+          if (new Date() > dbOtp.expiresAt) {
+            await Otp.findOneAndDelete({ mobileNumber: normalizedPhoneNumber });
+            return res.status(400).json({
+              success: false,
+              error: 'OTP has expired. Please request a new OTP.'
+            });
+          }
+          // Convert database format to match in-memory format
+          storedData = {
+            otp: dbOtp.otp,
+            expiresAt: dbOtp.expiresAt.getTime(), // Convert Date to timestamp
+            userId: dbOtp.userId || userId // Use provided userId if db doesn't have it
+          };
+          console.log(`✅ OTP found in database for: "${normalizedPhoneNumber}"`);
+        }
+      } catch (dbError) {
+        console.error(`⚠️ Error checking database for OTP:`, dbError.message);
+      }
+    }
 
     if (!storedData) {
       console.error(`❌ OTP not found for: "${normalizedPhoneNumber}"`);
@@ -335,6 +383,12 @@ router.post('/verify-otp', async (req, res) => {
     // Check if OTP has expired
     if (Date.now() > storedData.expiresAt) {
       otpStore.delete(normalizedPhoneNumber);
+      // Also delete from database
+      try {
+        await Otp.findOneAndDelete({ mobileNumber: normalizedPhoneNumber });
+      } catch (dbError) {
+        console.error(`⚠️ Error deleting expired OTP from database:`, dbError.message);
+      }
       return res.status(400).json({
         success: false,
         error: 'OTP has expired. Please request a new OTP.'
@@ -371,8 +425,14 @@ router.post('/verify-otp', async (req, res) => {
     user.notificationPhoneVerified = true;
     await user.save();
 
-    // Remove OTP from store
+    // Remove OTP from both in-memory store and database
     otpStore.delete(normalizedPhoneNumber);
+    try {
+      await Otp.findOneAndDelete({ mobileNumber: normalizedPhoneNumber });
+    } catch (dbError) {
+      console.error(`⚠️ Error deleting OTP from database:`, dbError.message);
+      // Continue anyway - OTP is already verified
+    }
 
     return res.status(200).json({
       success: true,
