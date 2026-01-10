@@ -1720,34 +1720,41 @@ router.put("/admin/password-change/reject/:id", async (req, res) => {
   }
 });
 
-// Admin: Reset user password to default password
-router.put("/admin/reset-password-to-default/:userId", async (req, res) => {
+// Admin: Set user password (admin sets custom password for user)
+router.put("/admin/set-user-password/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const DEFAULT_PASSWORD = "123456"; // Default password
+    const { newPassword } = req.body;
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Password is required and must be at least 6 characters long" 
+      });
+    }
     
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Hash the default password
+    // Hash the new password
     const saltRounds = 10;
-    const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update user password to default and mark as default password
+    // Update user password and mark as default password (so user is prompted to change it)
     await User.findByIdAndUpdate(userId, {
-      password: hashedDefaultPassword,
-      isDefaultPassword: true
+      password: hashedPassword,
+      isDefaultPassword: true // Mark as default so user is prompted to change it
     });
 
     return res.status(200).json({ 
       success: true, 
-      message: `Password reset to default. Default password: ${DEFAULT_PASSWORD}`,
-      defaultPassword: DEFAULT_PASSWORD
+      message: `Password has been set successfully. User will be prompted to change it on next login.`,
+      passwordSet: true
     });
   } catch (error) {
-    console.error("Error resetting password to default:", error);
+    console.error("Error setting user password:", error);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 });
