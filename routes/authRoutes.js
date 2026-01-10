@@ -466,6 +466,7 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful",
       token,
+      isDefaultPassword: user.isDefaultPassword || false, // Include default password flag
       user: {
         _id: user._id,
         name: user.name,
@@ -473,6 +474,7 @@ router.post("/login", async (req, res) => {
         username: user.username,
         mobileNumber: user.mobileNumber,
         role: user.role,
+        isDefaultPassword: user.isDefaultPassword || false,
       },
     });
   } catch (err) {
@@ -1715,6 +1717,80 @@ router.put("/admin/password-change/reject/:id", async (req, res) => {
   } catch (error) {
     console.error("Error rejecting password change request:", error);
     return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Admin: Reset user password to default password
+router.put("/admin/reset-password-to-default/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const DEFAULT_PASSWORD = "123456"; // Default password
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Hash the default password
+    const saltRounds = 10;
+    const hashedDefaultPassword = await bcrypt.hash(DEFAULT_PASSWORD, saltRounds);
+
+    // Update user password to default and mark as default password
+    await User.findByIdAndUpdate(userId, {
+      password: hashedDefaultPassword,
+      isDefaultPassword: true
+    });
+
+    return res.status(200).json({ 
+      success: true, 
+      message: `Password reset to default. Default password: ${DEFAULT_PASSWORD}`,
+      defaultPassword: DEFAULT_PASSWORD
+    });
+  } catch (error) {
+    console.error("Error resetting password to default:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// User: Change password directly (for users with default password)
+router.put("/user/change-password", authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Current password and new password are required" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "New password must be at least 6 characters long" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password and clear default password flag
+    await User.findByIdAndUpdate(userId, {
+      password: hashedNewPassword,
+      isDefaultPassword: false
+    });
+
+    return res.status(200).json({ success: true, message: "Password changed successfully" });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
