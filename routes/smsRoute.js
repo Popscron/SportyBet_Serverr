@@ -263,7 +263,7 @@ router.post('/send-otp', async (req, res) => {
     console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
     // Send OTP via SMS
-    const message = `Your Mini verification code is: ${otp}\n\nThis code will expire in 10 minutes. Thank for choosing us `;
+    const message = `Your Mini verification code is: ${otp}\n\nThis code will expire in 10 minutes. Thank you for choosing us `;
     const result = await sendSMS(normalizedPhoneNumber, message);
 
     if (result.success) {
