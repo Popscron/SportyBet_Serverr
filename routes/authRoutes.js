@@ -298,6 +298,7 @@ router.post("/login", async (req, res) => {
           // Check user subscription type and expiry
           const subInfo = getSubscriptionInfo(user);
           const isPremium = subInfo.isPremium;
+          const isPremiumPlus = subInfo.isPremiumPlus;
           const maxDevices = subInfo.maxDevices;
 
           // Count active devices (excluding the current device being added)
@@ -398,11 +399,19 @@ router.post("/login", async (req, res) => {
               const message = "This account is already active on another device";
               
               console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
+              // Determine subscription type for response
+              let subscriptionType = "Basic";
+              if (isPremiumPlus) {
+                subscriptionType = "Premium Plus";
+              } else if (isPremium) {
+                subscriptionType = "Premium";
+              }
+              
               return res.status(403).json({
                 success: false,
                 code: "RESET_REQUEST_NEEDED",
                 message: message,
-                subscriptionType: isPremium ? "Premium" : "Basic",
+                subscriptionType: subscriptionType,
                 maxDevices: maxDevices,
                 currentDevices: activeDevices.length,
                 deviceInfo: deviceData,
