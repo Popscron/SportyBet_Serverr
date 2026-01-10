@@ -21,17 +21,24 @@ const getSubscriptionInfo = (user) => {
   const subscription = user.subscription || "Basic";
   
   let isPremium = false;
-  let maxDevices = 1; // Both Basic and Premium get 1 device limit
+  let isPremiumPlus = false;
+  let maxDevices = 1; // Basic gets 1 device limit
   
-  if (isActive && subscription === "Premium") {
-    isPremium = true;
-    // Premium still marked as premium but has same device limit as Basic
+  if (isActive) {
+    if (subscription === "Premium") {
+      isPremium = true;
+      maxDevices = 2; // Premium gets 2 devices
+    } else if (subscription === "Premium Plus") {
+      isPremiumPlus = true;
+      maxDevices = 2; // Premium Plus gets 2 devices
+    }
   }
   // Basic gets 1 device (default)
   
   return {
     subscription,
     isPremium,
+    isPremiumPlus,
     maxDevices,
     isActive
   };
@@ -386,8 +393,8 @@ router.post("/login", async (req, res) => {
               }
               // Continue with login (device will be created/updated above)
             } else {
-              // For both premium and basic users, return RESET_REQUEST_NEEDED code
-              // Both have 1 device limit
+              // User has reached device limit, return RESET_REQUEST_NEEDED code
+              // Basic: 1 device, Premium: 2 devices, Premium Plus: 2 devices
               const message = "This account is already active on another device";
               
               console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
@@ -1182,6 +1189,35 @@ router.put("/user/notification-settings", async (req, res) => {
       if (!["inbuilt", "third-party"].includes(notificationType)) {
         return res.status(400).json({ success: false, message: "Invalid notification type. Must be 'inbuilt' or 'third-party'" });
       }
+      
+      // Validate notification type based on subscription
+      const subscription = user.subscription || "Basic";
+      if (subscription === "Premium") {
+        // Premium users can only use inbuilt SMS
+        if (notificationType !== "inbuilt") {
+          return res.status(403).json({ 
+            success: false, 
+            message: "Premium users can only use Inbuilt (Free) notifications." 
+          });
+        }
+      } else if (subscription === "Premium Plus") {
+        // Premium Plus users can only use Real SMS
+        if (notificationType !== "third-party") {
+          return res.status(403).json({ 
+            success: false, 
+            message: "Premium Plus users can only use Real SMS notifications." 
+          });
+        }
+      } else {
+        // Basic users can only use inbuilt SMS
+        if (notificationType !== "inbuilt") {
+          return res.status(403).json({ 
+            success: false, 
+            message: "Basic users can only use Inbuilt (Free) notifications." 
+          });
+        }
+      }
+      
       updateData.notificationType = notificationType;
       console.log("Updating notificationType to:", notificationType);
     }

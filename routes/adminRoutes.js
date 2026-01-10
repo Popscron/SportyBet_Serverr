@@ -6,6 +6,35 @@ const Device = require("../models/Device");
 const User = require("../models/user");
 const SECRET_KEY = "your_secret_key";
 
+// Helper function to get subscription info
+const getSubscriptionInfo = (user) => {
+  const isActive = !user.expiry || new Date(user.expiry) > new Date();
+  const subscription = user.subscription || "Basic";
+  
+  let isPremium = false;
+  let isPremiumPlus = false;
+  let maxDevices = 1; // Basic gets 1 device limit
+  
+  if (isActive) {
+    if (subscription === "Premium") {
+      isPremium = true;
+      maxDevices = 2; // Premium gets 2 devices
+    } else if (subscription === "Premium Plus") {
+      isPremiumPlus = true;
+      maxDevices = 2; // Premium Plus gets 2 devices
+    }
+  }
+  // Basic gets 1 device (default)
+  
+  return {
+    subscription,
+    isPremium,
+    isPremiumPlus,
+    maxDevices,
+    isActive
+  };
+};
+
 // Admin authentication middleware that supports both cookies and Authorization header
 const adminAuth = async (req, res, next) => {
   try {
