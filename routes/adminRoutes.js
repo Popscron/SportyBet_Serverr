@@ -12,16 +12,12 @@ const getSubscriptionInfo = (user) => {
   const subscription = user.subscription || "Basic";
   
   let isPremium = false;
-  let isPremiumPlus = false;
   let maxDevices = 1; // Basic gets 1 device limit
   
   if (isActive) {
     if (subscription === "Premium") {
       isPremium = true;
       maxDevices = 2; // Premium gets 2 devices
-    } else if (subscription === "Premium Plus") {
-      isPremiumPlus = true;
-      maxDevices = 2; // Premium Plus gets 2 devices
     }
   }
   // Basic gets 1 device (default)
@@ -29,7 +25,6 @@ const getSubscriptionInfo = (user) => {
   return {
     subscription,
     isPremium,
-    isPremiumPlus,
     maxDevices,
     isActive
   };

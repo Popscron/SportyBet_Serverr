@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema(
 
     subscription: {
       type: String,
-      enum: ["Basic", "Premium", "Premium Plus"],
+      enum: ["Basic", "Premium"],
       default: "Basic",
     },
     expiry: { type: Date },
@@ -76,7 +76,7 @@ const userSchema = new mongoose.Schema(
     notificationType: {
       type: String,
       enum: ["inbuilt", "third-party"],
-      default: "inbuilt", // Default to inbuilt (Basic and Premium use inbuilt, Premium Plus uses third-party)
+      default: "inbuilt", // Default to inbuilt
     },
     smsPoints: {
       type: Number,

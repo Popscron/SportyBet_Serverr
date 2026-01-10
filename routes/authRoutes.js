@@ -21,16 +21,12 @@ const getSubscriptionInfo = (user) => {
   const subscription = user.subscription || "Basic";
   
   let isPremium = false;
-  let isPremiumPlus = false;
   let maxDevices = 1; // Basic gets 1 device limit
   
   if (isActive) {
     if (subscription === "Premium") {
       isPremium = true;
       maxDevices = 2; // Premium gets 2 devices
-    } else if (subscription === "Premium Plus") {
-      isPremiumPlus = true;
-      maxDevices = 2; // Premium Plus gets 2 devices
     }
   }
   // Basic gets 1 device (default)
@@ -38,7 +34,6 @@ const getSubscriptionInfo = (user) => {
   return {
     subscription,
     isPremium,
-    isPremiumPlus,
     maxDevices,
     isActive
   };
@@ -306,7 +301,6 @@ router.post("/login", async (req, res) => {
           // Check user subscription type and expiry
           const subInfo = getSubscriptionInfo(user);
           const isPremium = subInfo.isPremium;
-          const isPremiumPlus = subInfo.isPremiumPlus;
           const maxDevices = subInfo.maxDevices;
 
           // Count active devices (excluding the current device being added)
@@ -403,17 +397,12 @@ router.post("/login", async (req, res) => {
               // Continue with login (device will be created/updated above)
             } else {
               // User has reached device limit, return RESET_REQUEST_NEEDED code
-              // Basic: 1 device, Premium: 2 devices, Premium Plus: 2 devices
+              // Basic: 1 device, Premium: 2 devices
               const message = "This account is already active on another device";
               
               console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
               // Determine subscription type for response
-              let subscriptionType = "Basic";
-              if (isPremiumPlus) {
-                subscriptionType = "Premium Plus";
-              } else if (isPremium) {
-                subscriptionType = "Premium";
-              }
+              const subscriptionType = isPremium ? "Premium" : "Basic";
               
               return res.status(403).json({
                 success: false,
@@ -454,10 +443,9 @@ router.post("/login", async (req, res) => {
     //   - The stored token is mainly for Basic users (single device enforcement)
     const subInfo = getSubscriptionInfo(user);
     const isPremium = subInfo.isPremium;
-    const isPremiumPlus = subInfo.isPremiumPlus;
     
-    // For Premium/Premium Plus users: Only update token if this is the first device
-    if (isPremium || isPremiumPlus) {
+    // For Premium users: Only update token if this is the first device
+    if (isPremium) {
       // Check active devices count BEFORE this login (excluding the device we just created/updated)
       // We need to check if there were already active devices before this login
       const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
@@ -466,11 +454,11 @@ router.post("/login", async (req, res) => {
       if (activeDevicesBeforeLogin === 0) {
         // First device - update token
         await User.findByIdAndUpdate(user._id, { token });
-        console.log(`[Login] Token updated for Premium/Premium Plus user (first device)`);
+        console.log(`[Login] Token updated for Premium user (first device)`);
       } else {
         // User already has active devices - don't update token
         // This allows multiple devices to stay logged in simultaneously
-        console.log(`[Login] Token NOT updated for Premium/Premium Plus user (already has ${activeDevicesBeforeLogin} active device(s))`);
+        console.log(`[Login] Token NOT updated for Premium user (already has ${activeDevicesBeforeLogin} active device(s))`);
       }
     } else {
       // Basic users: Always update token (enforces single device)
@@ -1224,31 +1212,8 @@ router.put("/user/notification-settings", async (req, res) => {
       
       // Validate notification type based on subscription
       const subscription = user.subscription || "Basic";
-      if (subscription === "Premium") {
-        // Premium users can only use inbuilt SMS
-        if (notificationType !== "inbuilt") {
-          return res.status(403).json({ 
-            success: false, 
-            message: "Premium users can only use Inbuilt (Free) notifications." 
-          });
-        }
-      } else if (subscription === "Premium Plus") {
-        // Premium Plus users can only use Real SMS
-        if (notificationType !== "third-party") {
-          return res.status(403).json({ 
-            success: false, 
-            message: "Premium Plus users can only use Real SMS notifications." 
-          });
-        }
-      } else {
-        // Basic users can only use inbuilt SMS
-        if (notificationType !== "inbuilt") {
-          return res.status(403).json({ 
-            success: false, 
-            message: "Basic users can only use Inbuilt (Free) notifications." 
-          });
-        }
-      }
+      // All users (Basic and Premium) can use both inbuilt and real SMS
+      // No subscription-based restrictions on notification types
       
       updateData.notificationType = notificationType;
       console.log("Updating notificationType to:", notificationType);

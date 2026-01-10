@@ -15,11 +15,9 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
-    // Check if user is premium/premium plus and has active subscription
+    // Check if user is premium and has active subscription
     const isPremium = user.subscription === "Premium" && 
                      (!user.expiry || new Date(user.expiry) > new Date());
-    const isPremiumPlus = user.subscription === "Premium Plus" && 
-                         (!user.expiry || new Date(user.expiry) > new Date());
     
     // ============================================================================
     // OLD BEHAVIOR (Currently Active):
@@ -35,9 +33,9 @@ const authMiddleware = async (req, res, next) => {
     // - This check can be removed if new behavior is re-enabled
     //
     // ============================================================================
-    // For premium/premium plus users, allow multiple tokens (don't check user.token)
+    // For premium users, allow multiple tokens (don't check user.token)
     // For basic users, check token to ensure only one device is logged in (OLD BEHAVIOR)
-    if (!isPremium && !isPremiumPlus && user.token && user.token !== token) {
+    if (!isPremium && user.token && user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
