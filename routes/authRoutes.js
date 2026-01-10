@@ -1232,6 +1232,11 @@ router.put("/user/notification-settings", async (req, res) => {
       }
     }
 
+    // Allow explicitly setting notificationPhoneVerified status (for unverify functionality)
+    if (req.body.notificationPhoneVerified !== undefined) {
+      updateData.notificationPhoneVerified = req.body.notificationPhoneVerified === true;
+    }
+
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ success: false, message: "No fields to update" });
     }
