@@ -1742,15 +1742,15 @@ router.put("/admin/set-user-password/:userId", async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
 
-    // Update user password and mark as default password (so user is prompted to change it)
+    // Update user password (user will use this password to login)
     await User.findByIdAndUpdate(userId, {
       password: hashedPassword,
-      isDefaultPassword: true // Mark as default so user is prompted to change it
+      isDefaultPassword: false // User will use this password, no prompt needed
     });
 
     return res.status(200).json({ 
       success: true, 
-      message: `Password has been set successfully. User will be prompted to change it on next login.`,
+      message: `Password has been set successfully.`,
       passwordSet: true
     });
   } catch (error) {
