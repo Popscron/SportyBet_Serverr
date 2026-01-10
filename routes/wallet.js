@@ -491,9 +491,9 @@ router.post("/withdraw", async (req, res) => {
         
         if (user.notificationType === "third-party") {
           // Real SMS format with detailed information
-          // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {currentBalance}. Available Balance: GHS {currentBalance} (same as current balance). Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
+          // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {currentBalance}. Available Balance: GHS {virtualBalance}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
           const currentBalanceValue = parseFloat(userBalance.amount || 0).toFixed(2);
-          const availableBalanceValue = currentBalanceValue; // Available balance same as current balance
+          const availableBalanceValue = parseFloat(virtualBalance || 0).toFixed(2);
           const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv Credit Current Balance: ${currencyType} ${currentBalanceValue}. Available Balance: ${currencyType} ${availableBalanceValue}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: ${transactionId}. TRANSACTION FEE: 0.00`;
           
           // Check if user has points
