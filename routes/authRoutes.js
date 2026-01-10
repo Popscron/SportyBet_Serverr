@@ -130,6 +130,10 @@ router.post("/register", async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+    // ✅ Calculate 1 month expiry date from now
+    const expiry = new Date();
+    expiry.setMonth(expiry.getMonth() + 1); // Add 1 month
+
     // ✅ Create new user with default values and "Hold" status (pending approval)
     const newUser = new User({
       name,
@@ -140,7 +144,8 @@ router.post("/register", async (req, res) => {
       subscription: "Basic", // Default subscription
       accountStatus: "Hold", // Pending admin approval
       role: "user", // Default role
-      // expiry and expiryPeriod will be set by admin when approving
+      expiry: expiry, // Set 1 month expiry by default
+      expiryPeriod: "1 Month", // Set expiry period
     });
 
     await newUser.save();
