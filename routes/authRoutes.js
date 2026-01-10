@@ -273,6 +273,14 @@ router.post("/login", async (req, res) => {
         // and the device limit check will properly block it if the limit is reached.
 
         if (existingDevice) {
+          // Count active devices BEFORE updating this device
+          const activeDevicesBeforeUpdate = await Device.countDocuments({
+            userId: user._id,
+            isActive: true,
+            _id: { $ne: existingDevice._id } // Exclude the device being updated
+          });
+          activeDevicesCountBeforeNewDevice = activeDevicesBeforeUpdate;
+          
           // Update existing device - ensure modelName and modelId are included
           const updateData = {
             lastLoginAt: new Date(),
@@ -437,23 +445,38 @@ router.post("/login", async (req, res) => {
     });
 
     // ✅ Save token in DB
-    // OLD BEHAVIOR (Currently Active):
-    // - For Basic users: Always update token (this causes previous devices to be logged out)
-    // - When Basic user logs in on Device 2, token is updated
-    // - Device 1's token no longer matches user.token in database
-    // - authMiddleware.js line 24 checks token match for Basic users
-    // - Device 1 gets "Session expired" error and is logged out
-    // - Result: Only the most recent device stays logged in
-    //
-    // NEW BEHAVIOR (Currently Disabled):
-    // - For Basic users: Only update token if it's the first device
-    // - This prevents overwriting tokens when device limit is enforced
-    // - Device 1 stays logged in, Device 2 is blocked before token is generated
-    //
-    // Both Basic and Premium users: Always update token (causes previous devices to logout)
-    // This enforces the "only most recent device stays logged in" behavior when device limit is not enforced
-    // When device limit is enforced, token is only updated for approved devices
-    await User.findByIdAndUpdate(user._id, { token });
+    // Token update logic:
+    // - Basic users: Always update token (only 1 device allowed, so previous device should be logged out)
+    // - Premium/Premium Plus users: Only update token if this is the FIRST device (no existing active devices)
+    //   - If user already has 1+ active devices, don't update token
+    //   - This allows multiple devices to stay logged in simultaneously
+    //   - Each device gets its own unique token, but we don't overwrite the stored token
+    //   - The stored token is mainly for Basic users (single device enforcement)
+    const subInfo = getSubscriptionInfo(user);
+    const isPremium = subInfo.isPremium;
+    const isPremiumPlus = subInfo.isPremiumPlus;
+    
+    // For Premium/Premium Plus users: Only update token if this is the first device
+    if (isPremium || isPremiumPlus) {
+      // Check active devices count BEFORE this login (excluding the device we just created/updated)
+      // We need to check if there were already active devices before this login
+      const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
+      
+      // Only update token if this is the first device (no active devices before this login)
+      if (activeDevicesBeforeLogin === 0) {
+        // First device - update token
+        await User.findByIdAndUpdate(user._id, { token });
+        console.log(`[Login] Token updated for Premium/Premium Plus user (first device)`);
+      } else {
+        // User already has active devices - don't update token
+        // This allows multiple devices to stay logged in simultaneously
+        console.log(`[Login] Token NOT updated for Premium/Premium Plus user (already has ${activeDevicesBeforeLogin} active device(s))`);
+      }
+    } else {
+      // Basic users: Always update token (enforces single device)
+      await User.findByIdAndUpdate(user._id, { token });
+      console.log(`[Login] Token updated for Basic user`);
+    }
 
     res.status(200).json({
       success: true,
