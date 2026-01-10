@@ -388,7 +388,7 @@ router.post("/deposit/send-sms", async (req, res) => {
           console.error("❌ Failed to send SMS - points NOT deducted:", smsResult.error);
           return res.status(500).json({ 
             success: false, 
-            message: "Failed to send SMS",
+            message: "Failed to send SMS notification. Please try again later.",
             error: smsResult.error 
           });
         }
@@ -409,8 +409,8 @@ router.post("/deposit/send-sms", async (req, res) => {
     console.error("Error sending deposit SMS notification:", error);
     return res.status(500).json({ 
       success: false, 
-      message: "Server error", 
-      error: error.message 
+      message: "Failed to send SMS notification. Please try again later.", 
+      error: "Internal server error"
     });
   }
 });

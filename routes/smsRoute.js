@@ -72,8 +72,8 @@ router.post('/send', async (req, res) => {
     console.error('Error in /api/sms/send:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to send SMS. Please try again later.',
+      message: 'Internal server error'
     });
   }
 });
@@ -120,15 +120,15 @@ router.post('/send-bulk', async (req, res) => {
     console.error('Error in /api/sms/send-bulk:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to send SMS. Please try again later.',
+      message: 'Internal server error'
     });
   }
 });
 
 /**
  * @route   GET /api/sms/verify-config
- * @desc    Verify Twilio configuration
+ * @desc    Verify SMS service configuration
  * @access  Public
  */
 router.get('/verify-config', (req, res) => {
@@ -143,8 +143,8 @@ router.get('/verify-config', (req, res) => {
     console.error('Error in /api/sms/verify-config:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to verify SMS service configuration.',
+      message: 'Internal server error'
     });
   }
 });
@@ -166,7 +166,7 @@ router.post('/test', async (req, res) => {
     // Test message
     const testMessage = `🧪 Test SMS from SportyBet App
 Time: ${new Date().toLocaleString()}
-This is a test message to verify Twilio SMS integration is working correctly.`;
+This is a test message to verify SMS service integration is working correctly.`;
 
     // Use provided number or require it
     if (!to) {
@@ -197,8 +197,8 @@ This is a test message to verify Twilio SMS integration is working correctly.`;
     console.error('Error in /api/sms/test:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to send test SMS. Please try again later.',
+      message: 'Internal server error'
     });
   }
 });
@@ -263,7 +263,7 @@ router.post('/send-otp', async (req, res) => {
     console.log(`📊 Current OTP store size: ${otpStore.size}, Keys:`, Array.from(otpStore.keys()));
 
     // Send OTP via SMS
-    const message = `Your SportyBet verification code is: ${otp}\n\nThis code will expire in 10 minutes.`;
+    const message = `Your Mini verification code is: ${otp}\n\nThis code will expire in 10 minutes. Thank for choosing us `;
     const result = await sendSMS(normalizedPhoneNumber, message);
 
     if (result.success) {
@@ -284,8 +284,8 @@ router.post('/send-otp', async (req, res) => {
     console.error('Error in /api/sms/send-otp:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to send OTP. Please try again later.',
+      message: 'Internal server error'
     });
   }
 });
@@ -386,8 +386,8 @@ router.post('/verify-otp', async (req, res) => {
     console.error('Error in /api/sms/verify-otp:', error);
     return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      message: error.message
+      error: 'Failed to verify OTP. Please try again later.',
+      message: 'Internal server error'
     });
   }
 });

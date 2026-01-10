@@ -24,9 +24,9 @@ if (accountSid && authToken) {
  */
 const sendSMS = async (to, message) => {
   try {
-    // Validate Twilio client is initialized
+    // Validate SMS service client is initialized
     if (!twilioClient) {
-      throw new Error('Twilio client not initialized. Please check your environment variables.');
+      throw new Error('SMS service not available. Please contact support.');
     }
 
     // Validate phone number format (should be E.164 format)
@@ -47,7 +47,7 @@ const sendSMS = async (to, message) => {
     });
 
     // Check if SMS was actually sent successfully
-    // Twilio status can be: queued, sending, sent, failed, delivered, undelivered
+    // SMS service status can be: queued, sending, sent, failed, delivered, undelivered
     const isSuccess = result.status !== 'failed' && result.status !== 'undelivered';
     
     if (isSuccess) {
@@ -64,14 +64,34 @@ const sendSMS = async (to, message) => {
       from: result.from,
       body: result.body,
       dateCreated: result.dateCreated,
-      error: isSuccess ? null : `SMS status: ${result.status}`
+      error: isSuccess ? null : 'SMS delivery failed. Please try again later.'
     };
   } catch (error) {
     console.error('❌ Error sending SMS:', error.message);
     
+    // Return generic error message to users (hide Twilio-specific errors)
+    let userFriendlyError = 'Failed to send SMS. Please try again later.';
+    
+    // Map common Twilio error codes to user-friendly messages
+    if (error.code) {
+      switch (error.code) {
+        case 21211:
+          userFriendlyError = 'Invalid phone number format.';
+          break;
+        case 21608:
+          userFriendlyError = 'Phone number is not verified.';
+          break;
+        case 21614:
+          userFriendlyError = 'Invalid phone number.';
+          break;
+        default:
+          userFriendlyError = 'Failed to send SMS. Please try again later.';
+      }
+    }
+    
     return {
       success: false,
-      error: error.message,
+      error: userFriendlyError,
       code: error.code || 'UNKNOWN_ERROR'
     };
   }
@@ -121,8 +141,8 @@ const verifyTwilioConfig = () => {
     configured: allConfigured,
     details: config,
     message: allConfigured 
-      ? 'Twilio is properly configured' 
-      : 'Twilio is not fully configured. Please check your environment variables.'
+      ? 'SMS service is properly configured' 
+      : 'SMS service is not fully configured. Please check your environment variables.'
   };
 };
 
