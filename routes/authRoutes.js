@@ -86,29 +86,30 @@ router.post("/register", async (req, res) => {
     password,
     username,
     email,
-    expiryDate,
-    subscription,
-    role,
-    mobileNumber,
-    expiryPeriod
+    mobileNumber
   } = req.body;
 
   console.log("Register request:", req.body);
 
-  // ✅ Validate all fields
+  // ✅ Validate only user-provided fields (admin fields removed)
   if (
     !name ||
     !password ||
     !username ||
     !email ||
-    !expiryDate ||
-    !subscription ||
-    !role ||
     !mobileNumber
   ) {
     return res.status(400).json({
       success: false,
-      message: "All fields are required including mobile number.",
+      message: "All fields are required: name, username, email, mobile number, and password.",
+    });
+  }
+
+  // ✅ Validate password length
+  if (password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: "Password must be at least 6 characters long.",
     });
   }
 
@@ -129,49 +130,32 @@ router.post("/register", async (req, res) => {
     const saltRounds = 10;
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // ✅ Convert expiryDate to proper Date object
-    const expiry = new Date(expiryDate);
-    if (isNaN(expiry)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid expiry date format.",
-      });
-    }
-
-    const expiryMap = {
-      14: "2 Weeks",
-      30: "1 Month",
-      60: "2 Months",
-      90: "3 Months"
-    }
-
-    const expiryValue = expiryMap[expiryPeriod];
-
-    // ✅ Create and save new user
+    // ✅ Create new user with default values and "Hold" status (pending approval)
     const newUser = new User({
       name,
       password: hashedPassword,
       username,
       email,
       mobileNumber,
-      subscription,
-      expiry,
-      expiryPeriod: expiryValue,
-      role,
+      subscription: "Basic", // Default subscription
+      accountStatus: "Hold", // Pending admin approval
+      role: "user", // Default role
+      // expiry and expiryPeriod will be set by admin when approving
     });
 
     await newUser.save();
 
     res.status(201).json({
       success: true,
-      message: "User registered successfully",
+      message: "Registration successful! Your account is pending admin approval. You will be able to login once approved.",
+      requiresApproval: true,
       user: {
         _id: newUser._id,
         name: newUser.name,
         username: newUser.username,
         email: newUser.email,
         mobileNumber: newUser.mobileNumber,
-        role: newUser.role,
+        accountStatus: newUser.accountStatus,
       },
     });
   } catch (err) {
@@ -211,6 +195,18 @@ router.post("/login", async (req, res) => {
       return res
         .status(401)
         .json({ success: false, message: "Invalid credentials" });
+    }
+
+    // ✅ Check if account is pending approval (Hold status)
+    if (user.accountStatus === "Hold") {
+      return res
+        .status(403)
+        .json({ 
+          success: false, 
+          message: "Your account is pending admin approval. Please wait for approval before logging in.",
+          requiresApproval: true,
+          accountStatus: "Hold"
+        });
     }
 
     // ✅ Check if account is deactivated
