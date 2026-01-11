@@ -33,9 +33,15 @@ const authMiddleware = async (req, res, next) => {
     // - This check can be removed if new behavior is re-enabled
     //
     // ============================================================================
-    // For premium users, allow multiple tokens (don't check user.token)
+    // IMPORTANT: If user.token is null/cleared (force logout), reject ALL requests
+    // This ensures that when admin clears devices/token, user is logged out immediately
+    if (!user.token) {
+      return res.status(401).json({ error: "Session expired. Please log in again." });
+    }
+    
+    // For premium users, allow multiple tokens (don't check if token matches user.token)
     // For basic users, check token to ensure only one device is logged in (OLD BEHAVIOR)
-    if (!isPremium && user.token && user.token !== token) {
+    if (!isPremium && user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
