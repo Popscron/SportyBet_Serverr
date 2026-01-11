@@ -362,12 +362,24 @@ router.post("/deposit/send-sms", async (req, res) => {
       return res.status(404).json({ success: false, message: "User balance not found" });
     }
 
+    // Get virtual phone balance (currentBalance) from NotificationBalance
+    let virtualBalance = 0;
+    try {
+      const notificationBalance = await NotificationBalance.findOne({ userId });
+      virtualBalance = notificationBalance ? (notificationBalance.currentBalance || 0) : 0;
+    } catch (balanceError) {
+      console.error("Error fetching notification balance:", balanceError);
+      virtualBalance = 0;
+    }
+
     // Generate 12-digit transaction ID starting with 727
     const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
     const transactionId = `727${randomDigits}`;
     
-    // Real SMS format matching frontend
-    const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${userBalance.amount.toFixed(2)} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
+    // Real SMS format: Current Balance = deposit amount - virtual phone balance
+    const calculatedBalance = parseFloat(amount) - parseFloat(virtualBalance || 0);
+    const calculatedBalanceValue = calculatedBalance.toFixed(2);
+    const message = `Payment for ${currencyType}${amount.toFixed(2)} to Debit.Inv2 ..Current Balance: ${currencyType} ${calculatedBalanceValue} Transaction Id: ${transactionId}. Fee charged: ${currencyType}0.00,Tax Charged 0.Download the MoMo App for a Faster & Easier Experience. Click here: https://bit.ly/downloadMyMoMo`;
     
     if (user.notificationType === "third-party") {
       // Check if user has points
@@ -523,10 +535,11 @@ router.post("/withdraw", async (req, res) => {
           console.log(`⚠️ SMS already sent for withdrawal ${withdrawal._id}. Skipping duplicate SMS.`);
         } else if (user.notificationType === "third-party") {
           // Real SMS format with detailed information
-          // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {virtualBalance}. Available Balance: GHS {virtualBalance}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
-          // Both current balance and available balance use virtual phone balance
-          const virtualBalanceValue = parseFloat(virtualBalance || 0).toFixed(2);
-          const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv Credit Current Balance: ${currencyType} ${virtualBalanceValue}. Available Balance: ${currencyType} ${virtualBalanceValue}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: ${transactionId}. TRANSACTION FEE: 0.00`;
+          // Format: Payment received for GHS {amount} from Inv Credit Current Balance: GHS {withdrawAmount + virtualBalance}. Available Balance: GHS {withdrawAmount + virtualBalance}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: {12-digit}. TRANSACTION FEE: 0.00
+          // Both current balance and available balance = withdraw amount + virtual phone balance
+          const calculatedBalance = parseFloat(amount) + parseFloat(virtualBalance || 0);
+          const calculatedBalanceValue = calculatedBalance.toFixed(2);
+          const message = `Payment received for ${currencyType} ${amount.toFixed(2)} from Inv Credit Current Balance: ${currencyType} ${calculatedBalanceValue}. Available Balance: ${currencyType} ${calculatedBalanceValue}. Reference: Inv Credit ,23xxxxxx73,SportyBet from Hubtel. Transaction ID: ${transactionId}. TRANSACTION FEE: 0.00`;
           
           // Check if user has points
           if (user.smsPoints > 0) {
