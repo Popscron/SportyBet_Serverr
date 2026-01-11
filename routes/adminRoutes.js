@@ -491,5 +491,48 @@ router.post("/load-sms-points", async (req, res) => {
   }
 });
 
+// @route   POST /api/admin/users/:userId/clear-devices
+// @desc    Clear all devices and token for a user (Admin only) - Forces logout
+// @access  Private (Admin)
+router.post("/users/:userId/clear-devices", async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Find user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    // Delete all devices for this user
+    const deleteResult = await Device.deleteMany({ userId });
+    
+    // Clear user's authentication token
+    await User.findByIdAndUpdate(userId, { token: null });
+
+    res.json({
+      success: true,
+      message: `Successfully cleared ${deleteResult.deletedCount} device(s) and authentication token for user ${user.username}`,
+      data: {
+        userId: user._id,
+        username: user.username,
+        email: user.email,
+        devicesDeleted: deleteResult.deletedCount,
+        tokenCleared: true,
+      },
+    });
+  } catch (error) {
+    console.error("Clear user devices error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error clearing user devices",
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
 
