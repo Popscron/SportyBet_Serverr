@@ -269,13 +269,47 @@ router.post("/login", async (req, res) => {
         // and the device limit check will properly block it if the limit is reached.
 
         if (existingDevice) {
-          // Count active devices BEFORE updating this device
+          // Check user subscription type and expiry
+          const subInfo = getSubscriptionInfo(user);
+          const isPremium = subInfo.isPremium;
+          const maxDevices = subInfo.maxDevices;
+
+          // Count active devices BEFORE updating this device (excluding the device being updated)
           const activeDevicesBeforeUpdate = await Device.countDocuments({
             userId: user._id,
             isActive: true,
             _id: { $ne: existingDevice._id } // Exclude the device being updated
           });
           activeDevicesCountBeforeNewDevice = activeDevicesBeforeUpdate;
+
+          // If device is inactive and user has reached device limit, check if we can reactivate
+          if (!existingDevice.isActive && activeDevicesBeforeUpdate >= maxDevices) {
+            console.log(`[Login] Cannot reactivate inactive device - limit reached. Active: ${activeDevicesBeforeUpdate}, Max: ${maxDevices}`);
+            
+            // Check if there's an approved request for this device
+            const approvedRequest = await DeviceRequest.findOne({
+              userId: user._id,
+              "deviceInfo.deviceId": deviceData.deviceId,
+              status: "approved",
+            });
+
+            if (!approvedRequest) {
+              // No approved request - block reactivation
+              const message = "This account is already active on another device";
+              console.log(`[Login] Blocking reactivation - returning RESET_REQUEST_NEEDED`);
+              return res.status(403).json({
+                success: false,
+                code: "RESET_REQUEST_NEEDED",
+                message: message,
+                subscriptionType: isPremium ? "Premium" : "Basic",
+                maxDevices: maxDevices,
+                currentDevices: activeDevicesBeforeUpdate,
+                deviceInfo: deviceData,
+              });
+            }
+            // Approved request exists - allow reactivation
+            console.log(`[Login] Approved request found - allowing device reactivation`);
+          }
           
           // Update existing device - ensure modelName and modelId are included
           const updateData = {
@@ -897,6 +931,12 @@ router.post("/auth/logout", authMiddleware, async (req, res) => {
     const userId = req.user.id;
     const deviceId = req.body.deviceId || req.headers['x-device-id'];
     
+    // Get user to check subscription type
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
     // Deactivate the device if deviceId is provided
     if (deviceId) {
       await Device.findOneAndUpdate(
@@ -905,8 +945,31 @@ router.post("/auth/logout", authMiddleware, async (req, res) => {
       );
     }
 
-    // Clear token from user document
-    await User.findByIdAndUpdate(userId, { token: null });
+    // Check user subscription type
+    const subInfo = getSubscriptionInfo(user);
+    const isPremium = subInfo.isPremium;
+
+    // Only clear token for Basic users (single device enforcement)
+    // For Premium users, keep token so other devices can stay logged in
+    if (!isPremium) {
+      // Basic users: Clear token to enforce single device
+      await User.findByIdAndUpdate(userId, { token: null });
+      console.log(`[Logout] Token cleared for Basic user ${userId}`);
+    } else {
+      // Premium users: Check if there are still active devices
+      const activeDevices = await Device.find({
+        userId,
+        isActive: true,
+      });
+      
+      // Only clear token if no active devices remain
+      if (activeDevices.length === 0) {
+        await User.findByIdAndUpdate(userId, { token: null });
+        console.log(`[Logout] Token cleared for Premium user ${userId} (no active devices)`);
+      } else {
+        console.log(`[Logout] Token kept for Premium user ${userId} (${activeDevices.length} active device(s) remaining)`);
+      }
+    }
 
     res.clearCookie("sportybetToken", {
       httpOnly: true,

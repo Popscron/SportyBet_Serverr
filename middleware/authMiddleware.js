@@ -33,10 +33,32 @@ const authMiddleware = async (req, res, next) => {
     // - This check can be removed if new behavior is re-enabled
     //
     // ============================================================================
-    // IMPORTANT: If user.token is null/cleared (force logout), reject ALL requests
-    // This ensures that when admin clears devices/token, user is logged out immediately
+    // IMPORTANT: Token validation logic
+    // - For Basic users: If token is null, reject (single device enforcement)
+    // - For Premium users: If token is null BUT they have active devices, allow (multi-device support)
+    // - For Premium users: If token is null AND no active devices, reject (all devices logged out)
+    // - Admin force logout: If token is null and no active devices, reject (admin cleared everything)
+    
     if (!user.token) {
-      return res.status(401).json({ error: "Session expired. Please log in again." });
+      // Check if Premium user has active devices (multi-device support)
+      if (isPremium) {
+        const activeDevices = await Device.find({
+          userId: user._id,
+          isActive: true,
+        });
+        
+        // If Premium user has active devices, allow the request (multi-device support)
+        if (activeDevices.length > 0) {
+          // Premium user with active devices - token can be null, allow request
+          console.log(`[Auth] Premium user ${user._id} has ${activeDevices.length} active device(s), allowing request despite null token`);
+        } else {
+          // Premium user with no active devices - token is null, reject (all devices logged out)
+          return res.status(401).json({ error: "Session expired. Please log in again." });
+        }
+      } else {
+        // Basic user with null token - reject (single device enforcement)
+        return res.status(401).json({ error: "Session expired. Please log in again." });
+      }
     }
     
     // For premium users, allow multiple tokens (don't check if token matches user.token)
