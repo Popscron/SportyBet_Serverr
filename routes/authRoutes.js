@@ -11,6 +11,7 @@ const UserImage = require("../models/UserImage");
 const Balance = require("../models/UserBalance");
 const Device = require("../models/Device");
 const DeviceRequest = require("../models/DeviceRequest");
+const DeviceDeactivationRequest = require("../models/DeviceDeactivationRequest");
 
 const router = express.Router();
 const SECRET_KEY = "your_secret_key"; // Change this to a secure secret
@@ -782,7 +783,67 @@ router.get("/user/device-requests/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// Deactivate a device
+// Create device deactivation request
+router.post("/user/devices/:deviceId/deactivation-request", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { deviceId } = req.params;
+
+    // Find the device
+    const device = await Device.findOne({ userId, deviceId });
+    if (!device) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Device not found" 
+      });
+    }
+
+    // Check if device is already inactive
+    if (!device.isActive) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Device is already deactivated" 
+      });
+    }
+
+    // Check if there's already a pending request for this device
+    const existingRequest = await DeviceDeactivationRequest.findOne({
+      userId,
+      deviceId,
+      status: "pending"
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ 
+        success: false,
+        message: "A deactivation request is already pending for this device" 
+      });
+    }
+
+    // Create the deactivation request
+    const deactivationRequest = await DeviceDeactivationRequest.create({
+      userId,
+      deviceId,
+      device: device._id,
+      status: "pending"
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Deactivation request submitted successfully. Waiting for admin approval.",
+      data: deactivationRequest
+    });
+  } catch (error) {
+    console.error("Error creating deactivation request:", error);
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error",
+      error: error.message 
+    });
+  }
+});
+
+// Deactivate a device (kept for admin use)
 router.put("/user/devices/:deviceId/deactivate", authMiddleware, async (req, res) => {
   try {
     const userId = req.user.id;

@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const DeviceRequest = require("../models/DeviceRequest");
+const DeviceDeactivationRequest = require("../models/DeviceDeactivationRequest");
 const Device = require("../models/Device");
 const User = require("../models/user");
 const SECRET_KEY = "your_secret_key";
@@ -403,6 +404,135 @@ router.get("/users/:userId/devices", async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Server error fetching user devices",
+      error: error.message,
+    });
+  }
+});
+
+// @route   GET /api/admin/device-deactivation-requests
+// @desc    Get all device deactivation requests (Admin only)
+// @access  Private (Admin)
+router.get("/device-deactivation-requests", async (req, res) => {
+  try {
+    const { status } = req.query;
+    const query = {};
+    if (status) {
+      query.status = status;
+    }
+
+    const requests = await DeviceDeactivationRequest.find(query)
+      .populate("userId", "name email username mobileNumber subscription expiry")
+      .populate("device", "deviceName platform deviceType osVersion appVersion lastLoginAt")
+      .populate("reviewedBy", "name email")
+      .sort({ requestedAt: -1 });
+
+    res.json({
+      success: true,
+      data: requests,
+      count: requests.length,
+    });
+  } catch (error) {
+    console.error("Get device deactivation requests error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error fetching device deactivation requests",
+      error: error.message,
+    });
+  }
+});
+
+// @route   PUT /api/admin/device-deactivation-requests/:id/approve
+// @desc    Approve a device deactivation request (Admin only)
+// @access  Private (Admin)
+router.put("/device-deactivation-requests/:id/approve", async (req, res) => {
+  try {
+    const request = await DeviceDeactivationRequest.findById(req.params.id)
+      .populate("device")
+      .populate("userId");
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Deactivation request not found",
+      });
+    }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${request.status}`,
+      });
+    }
+
+    // Deactivate the device
+    const device = await Device.findById(request.device._id);
+    if (device) {
+      device.isActive = false;
+      device.lastLogoutAt = new Date();
+      await device.save();
+    }
+
+    // Update the request status
+    request.status = "approved";
+    request.reviewedBy = req.user?.id || null;
+    request.reviewedAt = new Date();
+    await request.save();
+
+    res.json({
+      success: true,
+      message: "Device deactivation request approved and device deactivated successfully",
+      data: request,
+    });
+  } catch (error) {
+    console.error("Approve device deactivation request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error approving device deactivation request",
+      error: error.message,
+    });
+  }
+});
+
+// @route   PUT /api/admin/device-deactivation-requests/:id/reject
+// @desc    Reject a device deactivation request (Admin only)
+// @access  Private (Admin)
+router.put("/device-deactivation-requests/:id/reject", async (req, res) => {
+  try {
+    const { rejectionReason } = req.body;
+    const request = await DeviceDeactivationRequest.findById(req.params.id);
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Deactivation request not found",
+      });
+    }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: `Request is already ${request.status}`,
+      });
+    }
+
+    request.status = "rejected";
+    request.reviewedBy = req.user?.id || null;
+    request.reviewedAt = new Date();
+    if (rejectionReason) {
+      request.rejectionReason = rejectionReason;
+    }
+    await request.save();
+
+    res.json({
+      success: true,
+      message: "Device deactivation request rejected",
+      data: request,
+    });
+  } catch (error) {
+    console.error("Reject device deactivation request error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error rejecting device deactivation request",
       error: error.message,
     });
   }
