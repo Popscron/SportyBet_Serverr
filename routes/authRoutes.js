@@ -339,13 +339,19 @@ router.post("/login", async (req, res) => {
           const isPremium = subInfo.isPremium;
           const maxDevices = subInfo.maxDevices;
 
-          // Count active devices (excluding the current device being added)
+          // Count ALL registered devices (both active and inactive) - not just active ones
+          // This ensures that even if a device logs out, the limit still applies
+          const allRegisteredDevices = await Device.find({
+            userId: user._id,
+          });
+
+          // Also get active devices count for logging
           const activeDevices = await Device.find({
             userId: user._id,
             isActive: true,
           });
 
-          console.log(`[Login] Device limit check - Active devices: ${activeDevices.length}, Max: ${maxDevices}, isPremium: ${isPremium}`);
+          console.log(`[Login] Device limit check - All registered devices: ${allRegisteredDevices.length}, Active devices: ${activeDevices.length}, Max: ${maxDevices}, isPremium: ${isPremium}`);
 
           // ============================================================================
           // 🔒 DEVICE LIMIT FEATURE - COMMENTED OUT (RESTORED OLD BEHAVIOR)
@@ -374,9 +380,9 @@ router.post("/login", async (req, res) => {
           //
           // ============================================================================
 
-          // Check if user has reached the device limit
-          if (activeDevices.length >= maxDevices) {
-            console.log(`[Login] Device limit reached! Blocking new device creation.`);
+          // Check if user has reached the device limit (count ALL registered devices, not just active)
+          if (allRegisteredDevices.length >= maxDevices) {
+            console.log(`[Login] Device limit reached! User has ${allRegisteredDevices.length} registered device(s) (${activeDevices.length} active). Blocking new device creation.`);
             
             // Check if there's already a pending request for this device
             const existingRequest = await DeviceRequest.findOne({
@@ -434,7 +440,9 @@ router.post("/login", async (req, res) => {
             } else {
               // User has reached device limit, return RESET_REQUEST_NEEDED code
               // Basic: 1 device, Premium: 2 devices
-              const message = "This account is already active on another device";
+              // Message shows total registered devices (not just active)
+              const deviceCountText = allRegisteredDevices.length === 1 ? "device" : "devices";
+              const message = `This account is currently active on ${allRegisteredDevices.length} ${deviceCountText}`;
               
               console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
               // Determine subscription type for response
@@ -446,7 +454,8 @@ router.post("/login", async (req, res) => {
                 message: message,
                 subscriptionType: subscriptionType,
                 maxDevices: maxDevices,
-                currentDevices: activeDevices.length,
+                currentDevices: allRegisteredDevices.length, // Total registered devices
+                activeDevices: activeDevices.length, // Active devices count
                 deviceInfo: deviceData,
               });
             }
