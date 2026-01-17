@@ -246,48 +246,26 @@ router.put("/device-requests/:id/approve", async (req, res) => {
       isActive: true,
     });
 
-    // Get deviceIdToLogout from request body (admin selects which device to logout)
-    const { deviceIdToLogout } = req.body;
+    // Get deviceIdToLogout or deviceIdsToLogout from request body (admin selects which device(s) to logout)
+    const { deviceIdToLogout, deviceIdsToLogout } = req.body;
+    
+    // Support both single deviceId and array of deviceIds
+    const devicesToLogout = deviceIdsToLogout && Array.isArray(deviceIdsToLogout) && deviceIdsToLogout.length > 0
+      ? deviceIdsToLogout
+      : deviceIdToLogout
+      ? [deviceIdToLogout]
+      : [];
 
-    console.log(`[Admin Approve] Active devices: ${activeDevices.length}, Max: ${maxDevices}, deviceIdToLogout: ${deviceIdToLogout}`);
+    console.log(`[Admin Approve] Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
+    console.log(`[Admin Approve] Devices to logout:`, devicesToLogout);
     console.log(`[Admin Approve] Active device IDs:`, activeDevices.map(d => ({ deviceId: d.deviceId, _id: d._id, deviceName: d.deviceName })));
 
-    // If user has reached max devices, logout the selected device
+    // If user has reached max devices, logout the selected device(s)
     if (activeDevices.length >= maxDevices) {
-      if (!deviceIdToLogout) {
+      if (devicesToLogout.length === 0) {
         return res.status(400).json({
           success: false,
-          message: "deviceIdToLogout is required when user has reached device limit",
-        });
-      }
-
-      // Find the device to logout by deviceId (try exact match first)
-      let deviceToLogout = await Device.findOne({
-        userId: user._id,
-        deviceId: deviceIdToLogout,
-        isActive: true,
-      });
-
-      // If not found by deviceId, try by _id (in case admin sent MongoDB _id instead)
-      if (!deviceToLogout) {
-        try {
-          deviceToLogout = await Device.findOne({
-            userId: user._id,
-            _id: deviceIdToLogout,
-            isActive: true,
-          });
-          console.log(`[Admin Approve] Found device by _id: ${deviceIdToLogout}`);
-        } catch (idError) {
-          // Invalid ObjectId format, continue with deviceId search
-          console.log(`[Admin Approve] deviceIdToLogout is not a valid ObjectId, using deviceId search`);
-        }
-      }
-
-      if (!deviceToLogout) {
-        console.error(`[Admin Approve] Device not found - deviceIdToLogout: ${deviceIdToLogout}, userId: ${user._id}`);
-        return res.status(404).json({
-          success: false,
-          message: "Device to logout not found or is not active. Please check the device ID.",
+          message: "deviceIdToLogout or deviceIdsToLogout is required when user has reached device limit",
           availableDevices: activeDevices.map(d => ({
             _id: d._id.toString(),
             deviceId: d.deviceId,
@@ -297,27 +275,79 @@ router.put("/device-requests/:id/approve", async (req, res) => {
         });
       }
 
-      console.log(`[Admin Approve] Logging out device: ${deviceToLogout.deviceId} (${deviceToLogout._id})`);
+      // Logout all selected devices
+      const logoutResults = [];
+      for (const deviceIdentifier of devicesToLogout) {
+        // Find the device to logout by deviceId (try exact match first)
+        let deviceToLogout = await Device.findOne({
+          userId: user._id,
+          deviceId: deviceIdentifier,
+          isActive: true,
+        });
 
-      // Deactivate the selected device
-      const updatedDevice = await Device.findByIdAndUpdate(
-        deviceToLogout._id,
-        {
-          isActive: false,
-          lastLogoutAt: new Date(),
-        },
-        { new: true }
-      );
+        // If not found by deviceId, try by _id (in case admin sent MongoDB _id instead)
+        if (!deviceToLogout) {
+          try {
+            deviceToLogout = await Device.findOne({
+              userId: user._id,
+              _id: deviceIdentifier,
+              isActive: true,
+            });
+            console.log(`[Admin Approve] Found device by _id: ${deviceIdentifier}`);
+          } catch (idError) {
+            // Invalid ObjectId format, continue with deviceId search
+            console.log(`[Admin Approve] ${deviceIdentifier} is not a valid ObjectId, using deviceId search`);
+          }
+        }
 
-      if (!updatedDevice || updatedDevice.isActive !== false) {
-        console.error(`[Admin Approve] Failed to deactivate device: ${deviceToLogout._id}`);
-        return res.status(500).json({
+        if (!deviceToLogout) {
+          console.error(`[Admin Approve] Device not found - deviceIdentifier: ${deviceIdentifier}, userId: ${user._id}`);
+          logoutResults.push({ deviceIdentifier, success: false, error: "Device not found" });
+          continue;
+        }
+
+        console.log(`[Admin Approve] Logging out device: ${deviceToLogout.deviceId} (${deviceToLogout._id})`);
+
+        // Deactivate the selected device
+        const updatedDevice = await Device.findByIdAndUpdate(
+          deviceToLogout._id,
+          {
+            isActive: false,
+            lastLogoutAt: new Date(),
+          },
+          { new: true }
+        );
+
+        if (!updatedDevice || updatedDevice.isActive !== false) {
+          console.error(`[Admin Approve] Failed to deactivate device: ${deviceToLogout._id}`);
+          logoutResults.push({ deviceIdentifier, success: false, error: "Failed to deactivate" });
+          continue;
+        }
+
+        console.log(`[Admin Approve] Device successfully deactivated: ${updatedDevice.deviceId}`);
+        logoutResults.push({ deviceIdentifier, success: true, deviceId: updatedDevice.deviceId });
+      }
+
+      // Check if at least one device was successfully logged out
+      const successfulLogouts = logoutResults.filter(r => r.success);
+      if (successfulLogouts.length === 0) {
+        return res.status(400).json({
           success: false,
-          message: "Failed to deactivate device. Please try again.",
+          message: "Failed to logout any devices. Please check the device IDs and try again.",
+          logoutResults: logoutResults,
+          availableDevices: activeDevices.map(d => ({
+            _id: d._id.toString(),
+            deviceId: d.deviceId,
+            deviceName: d.deviceName,
+            platform: d.platform,
+          })),
         });
       }
 
-      console.log(`[Admin Approve] Device successfully deactivated: ${updatedDevice.deviceId}`);
+      // Remove user's token to logout the old devices
+      // This ensures the old devices cannot use the token anymore
+      await User.findByIdAndUpdate(user._id, { token: null });
+      console.log(`✅ Logged out ${successfulLogouts.length} device(s) and removed token for user ${user._id}`);
       
       // Re-fetch active devices after deactivation to ensure count is correct
       const activeDevicesAfterLogout = await Device.find({
@@ -341,11 +371,6 @@ router.put("/device-requests/:id/approve", async (req, res) => {
         currentActiveDevices: finalActiveDevices.length,
         maxDevices: maxDevices,
       });
-      
-      // Remove user's token to logout the old device
-      // This ensures the old device cannot use the token anymore
-      await User.findByIdAndUpdate(user._id, { token: null });
-      console.log(`✅ Logged out old device ${deviceIdToLogout} and removed token for user ${user._id}`);
     }
 
     // Create the new device
