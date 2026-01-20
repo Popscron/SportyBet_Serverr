@@ -432,22 +432,52 @@ router.post("/login", async (req, res) => {
               }
               // Continue with login (device will be created/updated above)
             } else {
-              // For both premium and basic users, return RESET_REQUEST_NEEDED code
+              // Automatically create a device request when user logs in on 3rd device
               // Premium: 2 devices, Basic: 1 device
               const message = isPremium 
                 ? "This account is already active on two devices"
                 : "This account is already active on another device";
               
-              console.log(`[Login] Returning RESET_REQUEST_NEEDED - ${message}`);
-              return res.status(403).json({
-                success: false,
-                code: "RESET_REQUEST_NEEDED",
-                message: message,
-                subscriptionType: isPremium ? "Premium" : "Basic",
-                maxDevices: maxDevices,
-                currentDevices: activeDevices.length,
-                deviceInfo: deviceData,
-              });
+              console.log(`[Login] Device limit reached - Auto-creating device request for device ${deviceData.deviceId}`);
+              
+              try {
+                // Create device request automatically
+                const deviceRequest = await DeviceRequest.create({
+                  userId: user._id,
+                  deviceInfo: deviceData,
+                  status: "pending",
+                  currentActiveDevices: activeDevices.map(d => d._id),
+                  subscriptionType: user.subscription || "Basic",
+                });
+                
+                console.log(`[Login] Device request created successfully: ${deviceRequest._id}`);
+                
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: `${message}. A request has been automatically sent to admin for approval. Please wait for admin approval.`,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
+                  currentDevices: activeDevices.length,
+                  deviceInfo: deviceData,
+                  requestId: deviceRequest._id,
+                  requestCreated: true,
+                });
+              } catch (requestError) {
+                console.error(`[Login] Error creating device request:`, requestError);
+                // If request creation fails, return error but still inform user
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: `${message}. Failed to create device request. Please try again.`,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
+                  currentDevices: activeDevices.length,
+                  deviceInfo: deviceData,
+                  requestCreated: false,
+                  error: requestError.message,
+                });
+              }
             }
           } else {
             // User hasn't reached device limit, create new device normally
