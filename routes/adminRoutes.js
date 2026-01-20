@@ -383,23 +383,54 @@ router.put("/device-requests/:id/approve", async (req, res) => {
       });
     }
 
-    // Create the new device
-    const newDevice = await Device.create({
+    // Create or reactivate the device (avoid duplicate key on userId+deviceId)
+    let newDevice;
+    const existingDevice = await Device.findOne({
       userId: user._id,
       deviceId: request.deviceInfo.deviceId,
-      deviceName: request.deviceInfo.deviceName,
-      modelName: request.deviceInfo.modelName,
-      modelId: request.deviceInfo.modelId,
-      deviceType: request.deviceInfo.deviceType,
-      platform: request.deviceInfo.platform,
-      osVersion: request.deviceInfo.osVersion,
-      appVersion: request.deviceInfo.appVersion,
-      ipAddress: request.deviceInfo.ipAddress,
-      location: request.deviceInfo.location,
-      lastLoginAt: new Date(),
-      isActive: true,
-      loginCount: 1,
     });
+
+    if (existingDevice) {
+      // Reactivate and update existing device
+      newDevice = await Device.findByIdAndUpdate(
+        existingDevice._id,
+        {
+          deviceName: request.deviceInfo.deviceName,
+          modelName: request.deviceInfo.modelName,
+          modelId: request.deviceInfo.modelId,
+          deviceType: request.deviceInfo.deviceType,
+          platform: request.deviceInfo.platform,
+          osVersion: request.deviceInfo.osVersion,
+          appVersion: request.deviceInfo.appVersion,
+          ipAddress: request.deviceInfo.ipAddress,
+          location: request.deviceInfo.location,
+          isActive: true,
+          lastLoginAt: new Date(),
+          $inc: { loginCount: 1 },
+        },
+        { new: true }
+      );
+      console.log(`[Admin Approve] Reactivated existing device ${existingDevice.deviceId}`);
+    } else {
+      // Create the device since it doesn't exist
+      newDevice = await Device.create({
+        userId: user._id,
+        deviceId: request.deviceInfo.deviceId,
+        deviceName: request.deviceInfo.deviceName,
+        modelName: request.deviceInfo.modelName,
+        modelId: request.deviceInfo.modelId,
+        deviceType: request.deviceInfo.deviceType,
+        platform: request.deviceInfo.platform,
+        osVersion: request.deviceInfo.osVersion,
+        appVersion: request.deviceInfo.appVersion,
+        ipAddress: request.deviceInfo.ipAddress,
+        location: request.deviceInfo.location,
+        lastLoginAt: new Date(),
+        isActive: true,
+        loginCount: 1,
+      });
+      console.log(`[Admin Approve] Created new device ${newDevice.deviceId}`);
+    }
 
       // Update the request status
       request.status = "approved";
