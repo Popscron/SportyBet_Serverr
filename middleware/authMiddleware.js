@@ -67,22 +67,28 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
-    // Optional: Validate device if deviceId is provided in headers
+    // CRITICAL: Validate device if deviceId is provided in headers
     // This ensures the request is coming from an active device
+    // If device is logged out (isActive: false), reject the request
     const deviceId = req.header("X-Device-Id");
     if (deviceId) {
       const device = await Device.findOne({
         userId: user._id,
         deviceId: deviceId,
-        isActive: true,
       });
 
       if (!device) {
-        // Device not found or inactive - but don't block the request
-        // Just log it for monitoring purposes
-        console.log(`[Auth] Device validation failed for user ${user._id}, device ${deviceId}`);
+        // Device not found - allow request (might be first time or device not registered yet)
+        console.log(`[Auth] Device not found for user ${user._id}, device ${deviceId} - allowing request`);
+      } else if (!device.isActive) {
+        // Device exists but is inactive (logged out) - REJECT the request
+        console.log(`[Auth] Device ${deviceId} is inactive (logged out) for user ${user._id} - rejecting request`);
+        return res.status(401).json({ 
+          error: "This device has been logged out. Please log in again.",
+          deviceLoggedOut: true 
+        });
       } else {
-        // Update last activity timestamp
+        // Device is active - update last activity timestamp
         device.lastLoginAt = new Date();
         await device.save();
       }

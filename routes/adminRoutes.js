@@ -344,17 +344,19 @@ router.put("/device-requests/:id/approve", async (req, res) => {
         });
       }
 
+      // CRITICAL: For all users, we need to ensure logged out devices cannot authenticate
       // For Basic users: Remove user's token to logout all devices (since they can only have 1 device)
-      // For Premium users: Keep token but devices are logged out via isActive=false
-      // The authMiddleware will check isActive status for Premium users
+      // For Premium users: We keep token but authMiddleware will check device isActive status
+      // The authMiddleware now properly rejects requests from inactive devices
       if (!isPremium) {
         // Basic users: Clear token to ensure logged out devices can't use it
         await User.findByIdAndUpdate(user._id, { token: null });
         console.log(`✅ Logged out ${successfulLogouts.length} device(s) and removed token for Basic user ${user._id}`);
       } else {
-        // Premium users: Keep token, devices are logged out via isActive=false
-        // Remaining active devices can still use their tokens
-        console.log(`✅ Logged out ${successfulLogouts.length} device(s) for Premium user ${user._id} (token preserved for remaining active devices)`);
+        // Premium users: Devices are logged out via isActive=false
+        // authMiddleware will check device isActive status and reject requests from inactive devices
+        // Token is preserved for remaining active devices
+        console.log(`✅ Logged out ${successfulLogouts.length} device(s) for Premium user ${user._id} (devices marked inactive, authMiddleware will reject their requests)`);
       }
       
       // Re-fetch active devices after deactivation to ensure count is correct

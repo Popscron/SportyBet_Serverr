@@ -287,29 +287,81 @@ router.post("/login", async (req, res) => {
           if (!existingDevice.isActive && activeDevicesBeforeUpdate >= maxDevices) {
             console.log(`[Login] Cannot reactivate inactive device - limit reached. Active: ${activeDevicesBeforeUpdate}, Max: ${maxDevices}`);
             
-            // Check if there's an approved request for this device
+            // Check if there's a RECENT approved request for this device (within last 5 minutes)
+            // This prevents old approvals from being reused
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
             const approvedRequest = await DeviceRequest.findOne({
               userId: user._id,
               "deviceInfo.deviceId": deviceData.deviceId,
               status: "approved",
+              reviewedAt: { $gte: fiveMinutesAgo }, // Only allow recent approvals
             });
 
             if (!approvedRequest) {
-              // No approved request - block reactivation
-              const message = "This account is already active on another device";
-              console.log(`[Login] Blocking reactivation - returning RESET_REQUEST_NEEDED`);
-              return res.status(403).json({
-                success: false,
-                code: "RESET_REQUEST_NEEDED",
-                message: message,
-                subscriptionType: isPremium ? "Premium" : "Basic",
-                maxDevices: maxDevices,
-                currentDevices: activeDevicesBeforeUpdate,
-                deviceInfo: deviceData,
+              // No recent approved request - block reactivation and create new request
+              const message = isPremium 
+                ? "This account is already active on two devices"
+                : "This account is already active on another device";
+              console.log(`[Login] Blocking reactivation - device was logged out, creating new request`);
+              
+              // Check if there's already a pending request for this device
+              const existingPendingRequest = await DeviceRequest.findOne({
+                userId: user._id,
+                "deviceInfo.deviceId": deviceData.deviceId,
+                status: "pending",
               });
+
+              if (existingPendingRequest) {
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: `${message}. A request is already pending for this device. Please wait for admin approval.`,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
+                  currentDevices: activeDevicesBeforeUpdate,
+                  deviceInfo: deviceData,
+                  requestId: existingPendingRequest._id,
+                  requestCreated: true,
+                });
+              }
+
+              // Create new device request automatically
+              try {
+                const deviceRequest = await DeviceRequest.create({
+                  userId: user._id,
+                  deviceInfo: deviceData,
+                  status: "pending",
+                  currentActiveDevices: activeDevices.map(d => d._id),
+                  subscriptionType: user.subscription || "Basic",
+                });
+                
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: `${message}. This device was previously logged out. A new request has been sent to admin for approval.`,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
+                  currentDevices: activeDevicesBeforeUpdate,
+                  deviceInfo: deviceData,
+                  requestId: deviceRequest._id,
+                  requestCreated: true,
+                });
+              } catch (requestError) {
+                console.error(`[Login] Error creating device request:`, requestError);
+                return res.status(403).json({
+                  success: false,
+                  code: "RESET_REQUEST_NEEDED",
+                  message: `${message}. Failed to create device request. Please try again.`,
+                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  maxDevices: maxDevices,
+                  currentDevices: activeDevicesBeforeUpdate,
+                  deviceInfo: deviceData,
+                  requestCreated: false,
+                });
+              }
             }
-            // Approved request exists - allow reactivation
-            console.log(`[Login] Approved request found - allowing device reactivation`);
+            // Recent approved request exists - allow reactivation
+            console.log(`[Login] Recent approved request found - allowing device reactivation`);
           }
           
           // Update existing device - ensure modelName and modelId are included
@@ -403,16 +455,31 @@ router.post("/login", async (req, res) => {
               status: "approved",
             });
 
-            if (approvedRequest) {
-              console.log(`[Login] Approved request found for device ${deviceData.deviceId}`);
-              // Device was approved, allow login and create the device
-              // Check if device already exists (might have been created during approval)
-              const approvedDevice = await Device.findOne({
-                userId: user._id,
-                deviceId: deviceData.deviceId,
-              });
+            // Check if there's a RECENT approved request for this device (within last 5 minutes)
+            // AND the device doesn't exist yet (first time login after approval)
+            // This prevents old approvals from being reused after devices are logged out
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            const recentApprovedRequest = await DeviceRequest.findOne({
+              userId: user._id,
+              "deviceInfo.deviceId": deviceData.deviceId,
+              status: "approved",
+              reviewedAt: { $gte: fiveMinutesAgo }, // Only allow recent approvals
+            });
 
-              if (!approvedDevice) {
+            // Check if device already exists
+            const existingDeviceForApproval = await Device.findOne({
+              userId: user._id,
+              deviceId: deviceData.deviceId,
+            });
+
+            // Only allow using recent approval if:
+            // 1. There's a recent approved request
+            // 2. Device doesn't exist yet (first time login after approval)
+            // OR device exists but is currently active (wasn't logged out)
+            if (recentApprovedRequest && (!existingDeviceForApproval || existingDeviceForApproval.isActive)) {
+              console.log(`[Login] Recent approved request found for device ${deviceData.deviceId}`);
+              // Device was recently approved and either doesn't exist or is still active
+              if (!existingDeviceForApproval) {
                 // Create the device since it was approved
                 await Device.create({
                   ...deviceData,
@@ -422,11 +489,10 @@ router.post("/login", async (req, res) => {
                 console.log(`[Login] Approved device created - Active devices: ${activeDevices.length + 1}, Max: ${maxDevices}`);
                 isNewDevice = true; // Mark as new device
               } else {
-                // Update existing approved device
-                approvedDevice.isActive = true;
-                approvedDevice.lastLoginAt = new Date();
-                approvedDevice.loginCount = (approvedDevice.loginCount || 0) + 1;
-                await approvedDevice.save();
+                // Device exists and is active - just update it
+                existingDeviceForApproval.lastLoginAt = new Date();
+                existingDeviceForApproval.loginCount = (existingDeviceForApproval.loginCount || 0) + 1;
+                await existingDeviceForApproval.save();
                 console.log(`[Login] Approved device updated - Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
                 // Don't mark as new device - it already existed
               }
