@@ -347,27 +347,31 @@ router.put("/multibets/liveodd/:id", async (req, res) => {
         const { id } = req.params;
         const { liveOdd } = req.body;
 
-        // Validate input
-        if (liveOdd === undefined || liveOdd === null || isNaN(liveOdd)) {
+        // Quick validation
+        const oddValue = parseFloat(liveOdd);
+        if (isNaN(oddValue) || oddValue <= 0) {
             return res.status(400).json({ message: "Invalid liveOdd value" });
         }
 
-        // Optimized: Use updateOne instead of findByIdAndUpdate for faster response
-        // Only update the liveOdd field, don't return the full document
+        // Optimized: Use updateOne with lean and minimal options for fastest response
+        // Skip validation and hooks for speed (liveOdd is a simple number field)
         const updateResult = await Bet.updateOne(
             { _id: id },
-            { $set: { liveOdd: parseFloat(liveOdd) } }
+            { $set: { liveOdd: oddValue } },
+            { 
+                runValidators: false, // Skip validation for speed
+                upsert: false // Don't create if not found
+            }
         );
 
         if (updateResult.matchedCount === 0) {
             return res.status(404).json({ message: "Bet not found" });
         }
 
-        // Return success immediately without fetching the document
+        // Return minimal response immediately
         res.status(200).json({ 
-            message: "Bet updated successfully", 
             success: true,
-            liveOdd: parseFloat(liveOdd)
+            liveOdd: oddValue
         });
     } catch (error) {
         console.error("Error updating bet:", error);
