@@ -3,6 +3,16 @@ const router = express.Router();
 const VirtualGameBet = require("../models/VirtualGameBet");
 const Deposit = require("../models/deposite");
 
+// Generate 25-character booking code
+const generateBookingCode25 = () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 25; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 // POST /api/virtual-game/bet - Save a virtual game bet
 router.post("/virtual-game/bet", async (req, res) => {
   try {
@@ -54,7 +64,7 @@ router.post("/virtual-game/bet", async (req, res) => {
     const bet = new VirtualGameBet({
       userId,
       ticketId,
-      bookingCode,
+      bookingCode: normalizedBookingCode,
       stake: parseFloat(stake),
       totalOdds: parseFloat(totalOdds) || 1.0,
       potentialWin: parseFloat(potentialWin) || 0,
