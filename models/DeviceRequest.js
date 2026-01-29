@@ -46,7 +46,7 @@ const deviceRequestSchema = new mongoose.Schema(
     }],
     subscriptionType: {
       type: String,
-      enum: ["Basic", "Premium"],
+      enum: ["Basic", "Premium", "Premium Plus"],
       default: "Basic",
     },
   },

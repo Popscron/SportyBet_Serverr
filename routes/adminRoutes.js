@@ -20,6 +20,7 @@ const getSubscriptionInfo = (user) => {
       isPremium = true;
       maxDevices = 2; // Premium gets 2 devices
     }
+    // Premium Plus intentionally stays at 1 device (like Basic)
   }
   // Basic gets 1 device (default)
   
@@ -250,11 +251,14 @@ router.put("/device-requests/:id/approve", async (req, res) => {
     const { deviceIdToLogout, deviceIdsToLogout } = req.body;
     
     // Support both single deviceId and array of deviceIds
-    const devicesToLogout = deviceIdsToLogout && Array.isArray(deviceIdsToLogout) && deviceIdsToLogout.length > 0
-      ? deviceIdsToLogout
-      : deviceIdToLogout
-      ? [deviceIdToLogout]
-      : [];
+    // NOTE: for 1-device plans (e.g. Basic / Premium Plus), we can auto-logout the current device
+    // if admin doesn't pick one, so approval is one-click.
+    let devicesToLogout =
+      deviceIdsToLogout && Array.isArray(deviceIdsToLogout) && deviceIdsToLogout.length > 0
+        ? deviceIdsToLogout
+        : deviceIdToLogout
+        ? [deviceIdToLogout]
+        : [];
 
     console.log(`[Admin Approve] Active devices: ${activeDevices.length}, Max: ${maxDevices}`);
     console.log(`[Admin Approve] Devices to logout:`, devicesToLogout);
@@ -262,6 +266,13 @@ router.put("/device-requests/:id/approve", async (req, res) => {
 
     // If user has reached max devices, logout the selected device(s)
     if (activeDevices.length >= maxDevices) {
+      // For maxDevices=1, allow one-click approval: if no explicit device was selected,
+      // automatically logout all currently-active devices to make space.
+      if (devicesToLogout.length === 0 && maxDevices === 1) {
+        devicesToLogout = activeDevices.map((d) => d.deviceId).filter(Boolean);
+        console.log(`[Admin Approve] Auto-selected devices to logout for 1-device plan:`, devicesToLogout);
+      }
+
       if (devicesToLogout.length === 0) {
         return res.status(400).json({
           success: false,

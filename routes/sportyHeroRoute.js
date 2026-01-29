@@ -2,6 +2,35 @@ const express = require("express");
 const router = express.Router();
 const SportyHeroRound = require("../models/SportyHeroRound");
 const SportyHeroBet = require("../models/SportyHeroBet");
+const User = require("../models/user");
+
+const isPremiumPlusActive = (user) => {
+  if (!user) return false;
+  const isActive = !user.expiry || new Date(user.expiry) > new Date();
+  return isActive && user.subscription === "Premium Plus";
+};
+
+const requirePremiumPlusForUserId = async (userId, res) => {
+  if (!userId) {
+    res.status(400).json({ success: false, error: "userId is required" });
+    return null;
+  }
+  const user = await User.findById(userId).select("subscription expiry role");
+  if (!user) {
+    res.status(404).json({ success: false, error: "User not found" });
+    return null;
+  }
+  if (user.role === "admin") return user;
+  if (!isPremiumPlusActive(user)) {
+    res.status(403).json({
+      success: false,
+      error: "Premium Plus subscription required",
+      subscriptionType: user.subscription || "Basic",
+    });
+    return null;
+  }
+  return user;
+};
 
 // Generate a unique round ID for Sporty Hero
 const generateRoundId = () => {
@@ -111,6 +140,10 @@ router.post("/sporty-hero/bet", async (req, res) => {
       });
     }
 
+    // Enforce Premium Plus access
+    const user = await requirePremiumPlusForUserId(userId, res);
+    if (!user) return;
+
     // Create bet record with status "active"
     const bet = new SportyHeroBet({
       userId,
@@ -150,6 +183,10 @@ router.post("/sporty-hero/cashout", async (req, res) => {
         error: "Missing required fields: userId, roundId, panelId, cashoutMultiplier",
       });
     }
+
+    // Enforce Premium Plus access
+    const user = await requirePremiumPlusForUserId(userId, res);
+    if (!user) return;
 
     // Find the active bet for this user, round, and panel
     const bet = await SportyHeroBet.findOne({
@@ -239,6 +276,10 @@ router.get("/sporty-hero/bet-history", async (req, res) => {
 
     // Filter by user if provided
     if (userId) {
+      // Enforce Premium Plus access when requesting user-specific history
+      const user = await requirePremiumPlusForUserId(userId, res);
+      if (!user) return;
+
       query.userId = userId;
     }
 

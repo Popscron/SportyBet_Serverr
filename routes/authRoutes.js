@@ -29,6 +29,7 @@ const getSubscriptionInfo = (user) => {
       isPremium = true;
       maxDevices = 2; // Premium gets 2 devices
     }
+    // Premium Plus intentionally stays at 1 device (like Basic)
   }
   // Basic gets 1 device (default)
   
@@ -316,7 +317,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. A request is already pending for this device. Please wait for admin approval.`,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  subscriptionType: user.subscription || "Basic",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -327,11 +328,17 @@ router.post("/login", async (req, res) => {
 
               // Create new device request automatically
               try {
+                // Collect currently-active devices to help admin choose what to log out.
+                // Note: `activeDevicesBeforeUpdate` is a count; we still need the actual documents here.
+                const activeDevicesForRequest = await Device.find({
+                  userId: user._id,
+                  isActive: true,
+                });
                 const deviceRequest = await DeviceRequest.create({
                   userId: user._id,
                   deviceInfo: deviceData,
                   status: "pending",
-                  currentActiveDevices: activeDevices.map(d => d._id),
+                  currentActiveDevices: activeDevicesForRequest.map((d) => d._id),
                   subscriptionType: user.subscription || "Basic",
                 });
                 
@@ -339,7 +346,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. This device was previously logged out. A new request has been sent to admin for approval.`,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  subscriptionType: user.subscription || "Basic",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -352,7 +359,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. Failed to create device request. Please try again.`,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  subscriptionType: user.subscription || "Basic",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -522,7 +529,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. A request has been automatically sent to admin for approval. Please wait for admin approval.`,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  subscriptionType: user.subscription || "Basic",
                   maxDevices: maxDevices,
                   currentDevices: activeDevices.length,
                   deviceInfo: deviceData,
@@ -536,7 +543,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. Failed to create device request. Please try again.`,
-                  subscriptionType: isPremium ? "Premium" : "Basic",
+                  subscriptionType: user.subscription || "Basic",
                   maxDevices: maxDevices,
                   currentDevices: activeDevices.length,
                   deviceInfo: deviceData,

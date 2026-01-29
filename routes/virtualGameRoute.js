@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const VirtualGameBet = require("../models/VirtualGameBet");
 const Deposit = require("../models/deposite");
+const User = require("../models/user");
 
 // Generate 25-character booking code
 const generateBookingCode25 = () => {
@@ -11,6 +12,34 @@ const generateBookingCode25 = () => {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+};
+
+const isPremiumPlusActive = (user) => {
+  if (!user) return false;
+  const isActive = !user.expiry || new Date(user.expiry) > new Date();
+  return isActive && user.subscription === "Premium Plus";
+};
+
+const requirePremiumPlusForUserId = async (userId, res) => {
+  if (!userId) {
+    res.status(400).json({ success: false, error: "userId is required" });
+    return null;
+  }
+  const user = await User.findById(userId).select("subscription expiry role");
+  if (!user) {
+    res.status(404).json({ success: false, error: "User not found" });
+    return null;
+  }
+  if (user.role === "admin") return user;
+  if (!isPremiumPlusActive(user)) {
+    res.status(403).json({
+      success: false,
+      error: "Premium Plus subscription required",
+      subscriptionType: user.subscription || "Basic",
+    });
+    return null;
+  }
+  return user;
 };
 
 // POST /api/virtual-game/bet - Save a virtual game bet
@@ -28,6 +57,10 @@ router.post("/virtual-game/bet", async (req, res) => {
       market,
       currencyType,
     } = req.body;
+
+    // Enforce Premium Plus access
+    const user = await requirePremiumPlusForUserId(userId, res);
+    if (!user) return;
 
     // Validate required fields
     if (!userId || !ticketId || !bookingCode || stake === undefined) {
@@ -59,6 +92,9 @@ router.post("/virtual-game/bet", async (req, res) => {
     deposit.amount -= stake;
     await deposit.save();
     */
+
+    const normalizedBookingCode =
+      (bookingCode && String(bookingCode).trim()) || generateBookingCode25();
 
     // Create bet record
     const bet = new VirtualGameBet({
@@ -98,6 +134,10 @@ router.get("/virtual-game/bets/:userId", async (req, res) => {
     const { userId } = req.params;
     const { status } = req.query; // Optional status filter
 
+    // Enforce Premium Plus access
+    const user = await requirePremiumPlusForUserId(userId, res);
+    if (!user) return;
+
     let query = { userId };
     if (status && status !== "All") {
       query.status = status;
@@ -136,6 +176,10 @@ router.get("/virtual-game/bet/:ticketId", async (req, res) => {
       });
     }
 
+    // Enforce Premium Plus access for the bet owner
+    const user = await requirePremiumPlusForUserId(bet.userId, res);
+    if (!user) return;
+
     res.status(200).json({
       success: true,
       data: bet,
@@ -173,6 +217,10 @@ router.put("/virtual-game/bet/:ticketId", async (req, res) => {
         error: "Bet not found",
       });
     }
+
+    // Enforce Premium Plus access for the bet owner
+    const user = await requirePremiumPlusForUserId(bet.userId, res);
+    if (!user) return;
 
     // Update fields
     if (scoreA !== undefined) bet.scoreA = scoreA;
@@ -221,6 +269,18 @@ router.delete("/virtual-game/bet/:ticketId", async (req, res) => {
   try {
     const { ticketId } = req.params;
 
+    const existing = await VirtualGameBet.findOne({ ticketId });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Bet not found",
+      });
+    }
+
+    // Enforce Premium Plus access for the bet owner
+    const user = await requirePremiumPlusForUserId(existing.userId, res);
+    if (!user) return;
+
     const bet = await VirtualGameBet.findOneAndDelete({ ticketId });
 
     if (!bet) {
@@ -248,6 +308,10 @@ router.delete("/virtual-game/bet/:ticketId", async (req, res) => {
 router.get("/virtual-game/bets/:userId/status/:status", async (req, res) => {
   try {
     const { userId, status } = req.params;
+
+    // Enforce Premium Plus access
+    const user = await requirePremiumPlusForUserId(userId, res);
+    if (!user) return;
 
     const bets = await VirtualGameBet.find({ userId, status })
       .sort({ createdAt: -1 })

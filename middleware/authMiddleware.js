@@ -16,8 +16,9 @@ const authMiddleware = async (req, res, next) => {
     }
 
     // Check if user is premium and has active subscription
-    const isPremium = user.subscription === "Premium" && 
-                     (!user.expiry || new Date(user.expiry) > new Date());
+    const isPremium =
+      user.subscription === "Premium" &&
+      (!user.expiry || new Date(user.expiry) > new Date());
     
     // ============================================================================
     // OLD BEHAVIOR (Currently Active):

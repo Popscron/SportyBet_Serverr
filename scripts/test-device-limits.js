@@ -21,7 +21,7 @@ const getSubscriptionInfo = (user) => {
       maxDevices = 2; // Premium gets 2 devices
     } else if (subscription === "Premium Plus") {
       isPremiumPlus = true;
-      maxDevices = 2; // Premium Plus gets 2 devices
+      maxDevices = 1; // Premium Plus gets 1 device
     }
   }
   // Basic gets 1 device (default)
