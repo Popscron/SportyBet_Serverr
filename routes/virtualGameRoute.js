@@ -4,14 +4,41 @@ const VirtualGameBet = require("../models/VirtualGameBet");
 const Deposit = require("../models/deposite");
 const User = require("../models/user");
 
-// Generate 25-character booking code
+// Generate 25-character booking code (must contain lowercase, uppercase, and a number)
 const generateBookingCode25 = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 25; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  const lower = "abcdefghijklmnopqrstuvwxyz";
+  const upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const digits = "0123456789";
+  const all = lower + upper + digits;
+
+  // Guarantee at least 1 of each requirement, then fill the rest randomly.
+  const chars = [
+    lower[Math.floor(Math.random() * lower.length)],
+    upper[Math.floor(Math.random() * upper.length)],
+    digits[Math.floor(Math.random() * digits.length)],
+  ];
+  while (chars.length < 25) {
+    chars.push(all[Math.floor(Math.random() * all.length)]);
   }
-  return result;
+
+  // Shuffle to avoid predictable prefix
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join("");
+};
+
+const isValidBookingCode25 = (code) => {
+  if (!code) return false;
+  const s = String(code).trim();
+  if (s.length !== 25) return false;
+  if (!/^[A-Za-z0-9]{25}$/.test(s)) return false;
+  if (!/[a-z]/.test(s)) return false;
+  if (!/[A-Z]/.test(s)) return false;
+  if (!/[0-9]/.test(s)) return false;
+  return true;
 };
 
 const isPremiumPlusActive = (user) => {
@@ -62,11 +89,11 @@ router.post("/virtual-game/bet", async (req, res) => {
     const user = await requirePremiumPlusForUserId(userId, res);
     if (!user) return;
 
-    // Validate required fields
-    if (!userId || !ticketId || !bookingCode || stake === undefined) {
+    // Validate required fields (bookingCode is generated if missing/invalid)
+    if (!userId || !ticketId || stake === undefined) {
       return res.status(400).json({
         success: false,
-        error: "Missing required fields: userId, ticketId, bookingCode, stake",
+        error: "Missing required fields: userId, ticketId, stake",
       });
     }
 
@@ -93,8 +120,9 @@ router.post("/virtual-game/bet", async (req, res) => {
     await deposit.save();
     */
 
-    const normalizedBookingCode =
-      (bookingCode && String(bookingCode).trim()) || generateBookingCode25();
+    const normalizedBookingCode = isValidBookingCode25(bookingCode)
+      ? String(bookingCode).trim()
+      : generateBookingCode25();
 
     // Create bet record
     const bet = new VirtualGameBet({
@@ -207,6 +235,8 @@ router.put("/virtual-game/bet/:ticketId", async (req, res) => {
       status,
       matchHome,
       matchAway,
+      market,
+      outcome,
     } = req.body;
 
     const bet = await VirtualGameBet.findOne({ ticketId });
@@ -231,6 +261,8 @@ router.put("/virtual-game/bet/:ticketId", async (req, res) => {
     if (status) bet.status = status;
     if (matchHome) bet.matchHome = matchHome;
     if (matchAway) bet.matchAway = matchAway;
+    if (market) bet.market = market;
+    if (outcome !== undefined) bet.outcome = String(outcome || "");
 
     bet.updatedAt = Date.now();
     await bet.save();

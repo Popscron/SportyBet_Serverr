@@ -31,6 +31,11 @@ const VirtualGameBetSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // For manual/virtual update mode outcome display (separate from Pick)
+  outcome: {
+    type: String,
+    default: "",
+  },
   totalReturn: {
     type: Number,
     default: 0,
