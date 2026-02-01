@@ -31,12 +31,21 @@ const upload = multer({
   }
 });
 
+// Extract Cloudinary public_id from URL (format: .../upload/v123/folder/filename.ext)
+const getCloudinaryPublicId = (url) => {
+  if (!url || typeof url !== "string" || !url.includes("cloudinary.com")) return null;
+  const match = url.match(/\/upload\/v\d+\/(.+)/);
+  if (!match) return null;
+  return match[1].replace(/\.[^.]+$/, ""); // remove extension
+};
+
 // Helper function to delete images from Cloudinary
 const deleteImagesFromCloudinary = async (imageUrls) => {
   try {
     for (let url of imageUrls) {
-      const publicId = url.split("/").pop().split(".")[0]; // Extract public_id from URL
-      await cloudinary.uploader.destroy(publicId);
+      if (!url) continue;
+      const publicId = getCloudinaryPublicId(url);
+      if (publicId) await cloudinary.uploader.destroy(publicId);
     }
   } catch (error) {
     console.error("Error deleting images from Cloudinary:", error);
@@ -110,6 +119,19 @@ router.post("/uploadSingleImage", upload.single("images"), async (req, res) => {
       // Ensure we have an array of 4 images
       if (!existingImages.images || existingImages.images.length === 0) {
         existingImages.images = new Array(4).fill(null);
+      }
+      
+      // Delete old image from Cloudinary before replacing (saves space)
+      const oldUrl = existingImages.images[bannerIndex];
+      if (oldUrl) {
+        const oldPublicId = getCloudinaryPublicId(oldUrl);
+        if (oldPublicId) {
+          try {
+            await cloudinary.uploader.destroy(oldPublicId);
+          } catch (delErr) {
+            console.warn("Could not delete old banner from Cloudinary:", delErr.message);
+          }
+        }
       }
       
       // Update the specific banner image
