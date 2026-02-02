@@ -222,10 +222,10 @@ router.get("/virtual-game/bet/:ticketId", async (req, res) => {
   }
 });
 
-// PUT /api/virtual-game/bet/:ticketId - Update a virtual game bet (e.g., after game result)
+// PUT /api/virtual-game/bet/:ticketId - Update a virtual game bet (status, outcome, scores, matches)
 router.put("/virtual-game/bet/:ticketId", async (req, res) => {
   try {
-    const { ticketId } = req.params;
+    const ticketIdParam = String(req.params.ticketId || "").trim();
     const {
       scoreA,
       scoreB,
@@ -237,9 +237,25 @@ router.put("/virtual-game/bet/:ticketId", async (req, res) => {
       matchAway,
       market,
       outcome,
+      matches,
     } = req.body;
 
-    const bet = await VirtualGameBet.findOne({ ticketId });
+    // Find bet: try ticketId (from URL), then bookingCode, then _id from body
+    let bet = null;
+    if (ticketIdParam) {
+      bet = await VirtualGameBet.findOne({ ticketId: ticketIdParam });
+    }
+    if (!bet && req.body.bookingCode) {
+      bet = await VirtualGameBet.findOne({ bookingCode: String(req.body.bookingCode).trim() });
+    }
+    if (!bet && (req.body._id || req.body.betId)) {
+      const id = req.body._id || req.body.betId;
+      try {
+        bet = await VirtualGameBet.findById(id);
+      } catch (e) {
+        // invalid ObjectId
+      }
+    }
 
     if (!bet) {
       return res.status(404).json({
@@ -259,10 +275,36 @@ router.put("/virtual-game/bet/:ticketId", async (req, res) => {
     if (halfTimeScoreB !== undefined) bet.halfTimeScoreB = halfTimeScoreB;
     if (totalReturn !== undefined) bet.totalReturn = parseFloat(totalReturn);
     if (status) bet.status = status;
-    if (matchHome) bet.matchHome = matchHome;
-    if (matchAway) bet.matchAway = matchAway;
+    if (matchHome !== undefined) bet.matchHome = matchHome;
+    if (matchAway !== undefined) bet.matchAway = matchAway;
     if (market) bet.market = market;
-    if (outcome !== undefined) bet.outcome = String(outcome || "");
+    if (outcome !== undefined) {
+      const v = String(outcome || "").trim();
+      if (v.toLowerCase() !== "lost") bet.outcome = v;
+    }
+
+    // Update per-match status/outcome when matches array is sent (use home/away only; no teamNames)
+    if (Array.isArray(matches) && matches.length > 0) {
+      bet.matches = matches.map((m, i) => {
+        const existing = bet.matches[i] || {};
+        return {
+          home: m.home !== undefined ? m.home : existing.home,
+          away: m.away !== undefined ? m.away : existing.away,
+          team: m.team !== undefined ? m.team : existing.team,
+          pick: m.pick !== undefined ? m.pick : existing.pick,
+          market: m.market !== undefined ? m.market : existing.market,
+          odd: m.odd !== undefined ? m.odd : existing.odd,
+          matchId: m.matchId !== undefined ? m.matchId : existing.matchId,
+          won: m.won !== undefined ? m.won : existing.won,
+          status: m.status !== undefined ? m.status : existing.status,
+          outcome: (() => {
+            const v = m.outcome !== undefined ? m.outcome : existing.outcome;
+            const safe = (x) => (x && String(x).toLowerCase() !== "lost" ? String(x) : "");
+            return safe(v) || safe(existing.outcome) || existing.pick || "";
+          })(),
+        };
+      });
+    }
 
     bet.updatedAt = Date.now();
     await bet.save();

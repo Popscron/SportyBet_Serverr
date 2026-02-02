@@ -49,11 +49,15 @@ const VirtualGameBetSchema = new mongoose.Schema({
   matches: [{
     home: String,
     away: String,
-    team: String, // Full team name string like "BRE vs BOU"
+    team: String, // Full team name string like "BRE vs BOU" (optional; prefer home + away)
     pick: String, // Home, Draw, Away
     market: String, // 1X2, O/U, etc.
     odd: String,
     matchId: String,
+    // Per-match result (for status update from ticket detail modal)
+    won: { type: Boolean, default: null },
+    status: { type: String, enum: ["Won", "Lost", ""], default: "" },
+    outcome: { type: String, default: "" },
   }],
   // Game result data
   scoreA: {

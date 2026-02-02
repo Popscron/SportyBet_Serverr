@@ -36,7 +36,8 @@
     "create-test-account": "node scripts/create-test-account.js",
     "create-test-account-vercel": "node scripts/create-test-account-vercel.js",
     "test-two-device": "node scripts/test-two-device-session.js",
-    "seed-instant-football": "node scripts/seedInstantFootballMatches.js"
+    "seed-instant-football": "node scripts/seedInstantFootballMatches.js",
+    "migrate-virtual-game-bet": "node scripts/migrateVirtualGameBetFields.js"
   },
   "author": "",
   "license": "ISC",
