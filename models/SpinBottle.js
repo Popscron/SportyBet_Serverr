@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const SpinBottleSchema = new mongoose.Schema({
   result: {
     type: String,
-    enum: ["up", "down", "middle"],
+    enum: ["up", "down"],
     required: true,
   },
   roundId: {
