@@ -139,12 +139,34 @@ const formatOneDayAgo = () => {
   return `${day}/${month} ${hours}:${minutes}`;
 };
 
-// New endpoint to place bet from collapsed modal (create new bet with matches)
+// New endpoint to place bet from collapsed modal (create new bet with matches).
+// When isVirtualGame is true: only deduct balance; do NOT create bet/multibets (virtual game stores in its own table).
 router.post("/place-from-collapsed", async (req, res) => {
-  const { userId, stake, matches, totalOdd, bookingCode, deviceTime, deviceTimestamp } = req.body;
+  const { userId, stake, matches, totalOdd, bookingCode, deviceTime, deviceTimestamp, isVirtualGame } = req.body;
 
   if (!userId || !stake || stake <= 0) {
     return res.status(400).json({ message: "Invalid input: userId and stake are required" });
+  }
+
+  if (isVirtualGame === true) {
+    try {
+      const userBalance = await UserBalance.findOne({ userId });
+      if (!userBalance || userBalance.amount < stake) {
+        return res.status(400).json({
+          message: "Insufficient balance",
+          balance: userBalance?.amount || 0
+        });
+      }
+      userBalance.amount -= stake;
+      await userBalance.save();
+      return res.status(200).json({
+        message: "Virtual game bet – balance deducted",
+        balance: userBalance.amount,
+      });
+    } catch (err) {
+      console.error("Error placing virtual game bet (balance deduct):", err);
+      return res.status(500).json({ message: "Internal server error", error: err.message });
+    }
   }
 
   if (!matches || !Array.isArray(matches) || matches.length === 0) {
@@ -155,9 +177,9 @@ router.post("/place-from-collapsed", async (req, res) => {
     // Check and deduct balance
     const userBalance = await UserBalance.findOne({ userId });
     if (!userBalance || userBalance.amount < stake) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: "Insufficient balance",
-        balance: userBalance?.amount || 0 
+        balance: userBalance?.amount || 0
       });
     }
 
