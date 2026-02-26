@@ -12,6 +12,7 @@ const Balance = require("../models/UserBalance");
 const Device = require("../models/Device");
 const DeviceRequest = require("../models/DeviceRequest");
 const DeviceDeactivationRequest = require("../models/DeviceDeactivationRequest");
+const UserProfileStats = require("../models/UserProfileStats");
 
 const router = express.Router();
 const SECRET_KEY = "your_secret_key"; // Change this to a secure secret
@@ -25,11 +26,10 @@ const getSubscriptionInfo = (user) => {
   let maxDevices = 1; // Basic gets 1 device limit
   
   if (isActive) {
-    if (subscription === "Premium") {
+    if (subscription === "Premium" || subscription === "Premium Plus") {
       isPremium = true;
-      maxDevices = 2; // Premium gets 2 devices
+      maxDevices = 2; // Premium and Premium Plus get 2 devices
     }
-    // Premium Plus intentionally stays at 1 device (like Basic)
   }
   // Basic gets 1 device (default)
   
@@ -640,6 +640,56 @@ router.get("/user/profile", authMiddleware, async (req, res) => {
     res.json({ success: true, user });
   } catch (error) {
     console.error("Error fetching user data:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get profile stats (gifts count, badge count)
+router.get("/user/profile-stats", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    let stats = await UserProfileStats.findOne({ user: userId });
+    if (!stats) {
+      stats = await UserProfileStats.create({
+        user: userId,
+        giftsCount: 0,
+        badgeCount: 1,
+      });
+    }
+    res.json({
+      success: true,
+      giftsCount: stats.giftsCount,
+      badgeCount: stats.badgeCount,
+    });
+  } catch (error) {
+    console.error("Error fetching profile stats:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Update profile stats (gifts count, badge count)
+router.put("/user/profile-stats", authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { giftsCount, badgeCount } = req.body;
+    let stats = await UserProfileStats.findOne({ user: userId });
+    if (!stats) {
+      stats = await UserProfileStats.create({
+        user: userId,
+        giftsCount: 0,
+        badgeCount: 1,
+      });
+    }
+    if (typeof giftsCount === "number" && giftsCount >= 0) stats.giftsCount = giftsCount;
+    if (typeof badgeCount === "number" && badgeCount >= 0) stats.badgeCount = badgeCount;
+    await stats.save();
+    res.json({
+      success: true,
+      giftsCount: stats.giftsCount,
+      badgeCount: stats.badgeCount,
+    });
+  } catch (error) {
+    console.error("Error updating profile stats:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
