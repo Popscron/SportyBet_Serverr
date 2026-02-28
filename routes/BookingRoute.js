@@ -120,6 +120,7 @@ router.post("/place", async (req, res) => {
     res.status(200).json({
       message,
       bet: updatedBet,
+      balance: userBalance.amount,
     });
   } catch (err) {
     console.error("Error placing bet:", err);

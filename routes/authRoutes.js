@@ -1417,47 +1417,48 @@ router.post("/update-profile", async (req, res) => {
   const { userId, name, amount, phone, email, userIcon, darkMode, potentialRewards, loyaltyProgress, autoCashoutNotification } = req.body;
 
   try {
-    // ✅ Update user basic info
-    const updateData = {
-      name,
-      mobileNumber: phone,
-      email,
-      userIcon, // ✅ store avatar here
-    };
-    
-    // Add darkMode if provided
-    if (darkMode !== undefined) {
-      updateData.darkMode = darkMode;
+    // Validate userId so we don't call findByIdAndUpdate(undefined) after app reopen before user is loaded
+    if (!userId) {
+      return res.status(400).json({ success: false, message: "User ID is required. Please wait for your profile to load and try again." });
     }
-    
-    // Add potentialRewards if provided
-    if (potentialRewards !== undefined) {
-      updateData.potentialRewards = potentialRewards;
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ success: false, message: "Invalid user ID." });
     }
 
-    // Add loyaltyProgress if provided
-    if (loyaltyProgress !== undefined) {
-      updateData.loyaltyProgress = Math.max(0, Math.min(100, loyaltyProgress)); // Clamp between 0-100
+    // ✅ Update user basic info – only set defined fields so we don't overwrite with undefined
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.mobileNumber = phone;
+    if (email !== undefined) updateData.email = email;
+    if (userIcon !== undefined) updateData.userIcon = userIcon;
+
+    if (darkMode !== undefined) updateData.darkMode = darkMode;
+    if (potentialRewards !== undefined) updateData.potentialRewards = potentialRewards;
+    if (loyaltyProgress !== undefined) updateData.loyaltyProgress = Math.max(0, Math.min(100, loyaltyProgress));
+    if (autoCashoutNotification !== undefined) updateData.autoCashoutNotification = autoCashoutNotification;
+
+    if (Object.keys(updateData).length > 0) {
+      const updatedUser = await User.findByIdAndUpdate(userId, updateData, { new: true });
+      if (!updatedUser) {
+        return res.status(404).json({ success: false, message: "User not found." });
+      }
     }
 
-    // Add autoCashoutNotification if provided
-    if (autoCashoutNotification !== undefined) {
-      updateData.autoCashoutNotification = autoCashoutNotification;
+    // ✅ Update balance only when amount is a valid number (avoids Mongoose issues with undefined)
+    const parsedAmount = amount !== undefined && amount !== null && amount !== "" ? Number(amount) : NaN;
+    if (Number.isFinite(parsedAmount) && parsedAmount >= 0) {
+      await Balance.findOneAndUpdate(
+        { userId },
+        { $set: { amount: parsedAmount } },
+        { upsert: true, new: true }
+      );
     }
-    
-    await User.findByIdAndUpdate(userId, updateData);
-
-    // ✅ Update or create balance
-    await Balance.findOneAndUpdate(
-      { userId },
-      { amount },
-      { upsert: true, new: true }
-    );
 
     return res.json({ success: true, message: "Profile updated" });
   } catch (err) {
     console.error("Update error:", err);
-    return res.status(500).json({ success: false, message: "Update failed" });
+    const message = err.message || "Update failed";
+    return res.status(500).json({ success: false, message });
   }
 });
 
