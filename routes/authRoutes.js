@@ -26,9 +26,12 @@ const getSubscriptionInfo = (user) => {
   let maxDevices = 1; // Basic gets 1 device limit
   
   if (isActive) {
-    if (subscription === "Premium" || subscription === "Premium Plus") {
+    if (subscription === "Premium") {
       isPremium = true;
-      maxDevices = 2; // Premium and Premium Plus get 2 devices
+      maxDevices = 999; // Premium only: unlimited devices (no limit enforced)
+    } else if (subscription === "Premium Plus") {
+      isPremium = true;
+      maxDevices = 2; // Premium Plus: 2 devices
     }
   }
   // Basic gets 1 device (default)
