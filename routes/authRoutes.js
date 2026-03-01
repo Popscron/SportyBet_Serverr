@@ -20,10 +20,10 @@ const SECRET_KEY = "your_secret_key"; // Change this to a secure secret
 // Helper function to get subscription info
 const getSubscriptionInfo = (user) => {
   const isActive = !user.expiry || new Date(user.expiry) > new Date();
-  const subscription = user.subscription || "Basic";
+  const subscription = user.subscription || "Games";
   
   let isPremium = false;
-  let maxDevices = 1; // Basic gets 1 device limit
+  let maxDevices = 1; // Games gets 1 device limit
   
   if (isActive) {
     if (subscription === "Premium") {
@@ -34,7 +34,7 @@ const getSubscriptionInfo = (user) => {
       maxDevices = 2; // Premium Plus: 2 devices
     }
   }
-  // Basic gets 1 device (default)
+  // Games gets 1 device (default)
   
   return {
     subscription,
@@ -146,7 +146,7 @@ router.post("/register", async (req, res) => {
       username,
       email,
       mobileNumber,
-      subscription: "Basic", // Default subscription
+      subscription: "Games", // Default subscription
       accountStatus: "Hold", // Pending admin approval
       role: "user", // Default role
       expiry: expiry, // Set 1 month expiry by default
@@ -320,7 +320,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. A request is already pending for this device. Please wait for admin approval.`,
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -342,14 +342,14 @@ router.post("/login", async (req, res) => {
                   deviceInfo: deviceData,
                   status: "pending",
                   currentActiveDevices: activeDevicesForRequest.map((d) => d._id),
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                 });
                 
                 return res.status(403).json({
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. This device was previously logged out. A new request has been sent to admin for approval.`,
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -362,7 +362,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. Failed to create device request. Please try again.`,
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                   maxDevices: maxDevices,
                   currentDevices: activeDevicesBeforeUpdate,
                   deviceInfo: deviceData,
@@ -523,7 +523,7 @@ router.post("/login", async (req, res) => {
                   deviceInfo: deviceData,
                   status: "pending",
                   currentActiveDevices: activeDevices.map(d => d._id),
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                 });
                 
                 console.log(`[Login] Device request created successfully: ${deviceRequest._id}`);
@@ -532,7 +532,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. A request has been automatically sent to admin for approval. Please wait for admin approval.`,
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                   maxDevices: maxDevices,
                   currentDevices: activeDevices.length,
                   deviceInfo: deviceData,
@@ -546,7 +546,7 @@ router.post("/login", async (req, res) => {
                   success: false,
                   code: "RESET_REQUEST_NEEDED",
                   message: `${message}. Failed to create device request. Please try again.`,
-                  subscriptionType: user.subscription || "Basic",
+                  subscriptionType: user.subscription || "Games",
                   maxDevices: maxDevices,
                   currentDevices: activeDevices.length,
                   deviceInfo: deviceData,
@@ -605,7 +605,7 @@ router.post("/login", async (req, res) => {
     } else {
       // Basic users: Always update token (enforces single device)
       await User.findByIdAndUpdate(user._id, { token });
-      console.log(`[Login] Token updated for Basic user`);
+      console.log(`[Login] Token updated for Games user`);
     }
 
     res.status(200).json({
@@ -720,7 +720,7 @@ router.get("/user/devices", authMiddleware, async (req, res) => {
       allDevices: devices,
       activeDevices: activeDevices,
       inactiveDevices: inactiveDevices,
-      subscriptionType: user.subscription || "Basic",
+      subscriptionType: user.subscription || "Games",
       maxDevices: maxDevices,
       currentDeviceCount: activeDevices.length,
       canAddDevice: activeDevices.length < maxDevices
@@ -849,7 +849,7 @@ router.post("/user/create-device-request", async (req, res) => {
         deviceInfo: deviceData,
         status: "pending",
         currentActiveDevices: activeDevices.map(d => d._id),
-        subscriptionType: user.subscription || "Basic",
+        subscriptionType: user.subscription || "Games",
       });
     } catch (createError) {
       console.error("[Create Device Request] Error creating device request:", createError);
@@ -1171,7 +1171,7 @@ router.post("/auth/logout", authMiddleware, async (req, res) => {
     if (!isPremium) {
       // Basic users: Clear token to enforce single device
       await User.findByIdAndUpdate(userId, { token: null });
-      console.log(`[Logout] Token cleared for Basic user ${userId}`);
+      console.log(`[Logout] Token cleared for Games user ${userId}`);
     } else {
       // Premium users: Check if there are still active devices
       const activeDevices = await Device.find({
@@ -1495,7 +1495,7 @@ router.put("/user/notification-settings", async (req, res) => {
       }
       
       // Validate notification type based on subscription
-      const subscription = user.subscription || "Basic";
+      const subscription = user.subscription || "Games";
       // All users (Basic and Premium) can use both inbuilt and real SMS
       // No subscription-based restrictions on notification types
       
