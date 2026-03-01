@@ -71,6 +71,7 @@ const notification = require("../routes/notification.js");
 const manualCardRoutes = require("../routes/manualCardRoute.js");
 const spinBottleRoutes = require("../routes/spinBottleRoute.js");
 const sportyHeroRoutes = require("../routes/sportyHeroRoute.js");
+const nextUpdateRoutes = require("../routes/nextUpdateRoute.js");
 const adminRoutes = require("../routes/adminRoutes.js");
 const smsRoutes = require("../routes/smsRoute.js");
 
@@ -79,11 +80,12 @@ const allowedOrigins = [
   "https://admingh.online",
   "https://www.admingh.online",
   "https://1win-web.vercel.app",
-  "https://1win-web-*.vercel.app", // Allow all Vercel preview deployments
+  "https://1win-web-*.vercel.app",
+  "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
   "https://spindict.com",
   "https://www.spindict.com",
   "https://spindict.vercel.app",
-  "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
+  "https://spindict-*.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
@@ -259,6 +261,7 @@ app.use("/api", notification);
 app.use("/api", manualCardRoutes);
 app.use("/api", spinBottleRoutes);
 app.use("/api", sportyHeroRoutes);
+app.use("/api", nextUpdateRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/sms", smsRoutes);
 
