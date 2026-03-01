@@ -5,6 +5,7 @@ const DeviceRequest = require("../models/DeviceRequest");
 const DeviceDeactivationRequest = require("../models/DeviceDeactivationRequest");
 const Device = require("../models/Device");
 const User = require("../models/user");
+const NextUpdateDate = require("../models/NextUpdateDate");
 const SECRET_KEY = "your_secret_key";
 
 // Helper function to get subscription info
@@ -110,6 +111,35 @@ router.get("/test", (req, res) => {
 
 // All admin routes require authentication
 router.use(adminAuth);
+
+// PUT /api/admin/next-update-date - set next update date (shown in app profile)
+router.put("/next-update-date", async (req, res) => {
+  try {
+    const { nextUpdateDate } = req.body;
+    if (!nextUpdateDate || typeof nextUpdateDate !== "string" || !nextUpdateDate.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "nextUpdateDate is required (e.g. '01 Mar' or '15 Apr')",
+      });
+    }
+    let doc = await NextUpdateDate.getOrCreate();
+    doc.currentMonth = nextUpdateDate.trim();
+    doc.lastCalculated = new Date();
+    await doc.save();
+    return res.json({
+      success: true,
+      message: "Next update date updated",
+      nextUpdateDate: doc.currentMonth,
+    });
+  } catch (error) {
+    console.error("Error updating next update date:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error updating next update date",
+      error: error.message,
+    });
+  }
+});
 
 // @route   GET /api/admin/device-requests
 // @desc    Get all pending device requests (Admin only)
