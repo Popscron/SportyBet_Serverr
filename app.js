@@ -46,6 +46,7 @@ app.options("*", (req, res) => {
         "https://www.spindict.com",
         "https://spindict.vercel.app",
         "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
+        "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
@@ -80,6 +81,7 @@ app.use(
         "https://www.spindict.com",
         "https://spindict.vercel.app",
         "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
+        "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
