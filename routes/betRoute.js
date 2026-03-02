@@ -279,31 +279,32 @@ router.put("/bookingcode/:betId", async (req, res) => {
 
 router.delete("/bets/:betId", async (req, res) => {
   try {
-    const { betId } = req.params;
+    const betIdParam = String(req.params.betId || "").trim();
+    if (!betIdParam) {
+      return res.status(400).json({ error: "Bet ID is required" });
+    }
 
-    // Find the bet
-    const bet = await Bet.findById(betId);
+    const bet = await Bet.findById(betIdParam);
     if (!bet) {
       return res.status(404).json({ error: "Bet not found" });
     }
 
-    // Find the user's deposit and refund the stake
+    const betId = bet._id;
+
     const deposit = await Deposit.findOne({ userId: bet.userId });
     if (deposit) {
-      deposit.amount += bet.stake; // Refund the stake amount
+      deposit.amount += bet.stake;
       await deposit.save();
     }
 
-    // Delete related matches
-    await Match.deleteMany({ betId });
-
-    // Delete the bet
+    await Match.deleteMany({ userId: betId });
     await Bet.findByIdAndDelete(betId);
-    await VerifyCode.deleteOne({ betId });
-    await TransactionHistory.deleteOne({
-      sourceCollection: "Bet",
-      sourceId: betId,
-    });
+    await VerifyCode.deleteOne({ betId: String(betId) });
+
+    const sourceIdQuery = mongoose.Types.ObjectId.isValid(betIdParam)
+      ? { sourceCollection: "Bet", sourceId: betId }
+      : { sourceCollection: "Bet", sourceId: betIdParam };
+    await TransactionHistory.deleteOne(sourceIdQuery);
 
     res.json({ message: "Bet and related matches deleted successfully" });
   } catch (error) {
