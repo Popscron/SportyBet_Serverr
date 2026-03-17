@@ -328,7 +328,7 @@ app.post("/send-notification", async (req, res) => {
 });
 
 // Connect to MongoDB
-const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win';
+const mongoUrl = process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/SportyBetDB';
 
 // Connect to MongoDB (only if not already connected)
 // For serverless functions, we connect on first request if not already connected

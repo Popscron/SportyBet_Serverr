@@ -38,8 +38,7 @@ const userSchema = new mongoose.Schema(
     },
     userIcon: {
       type: String,
-      default:
-        "https://res.cloudinary.com/dir5lv73s/image/upload/v1742455852/userProfile/3_1_absxgl.png",
+      default: "",
     },
     darkMode: {
       type: Boolean,

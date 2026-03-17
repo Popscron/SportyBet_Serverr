@@ -219,8 +219,13 @@ app.post("/send-notification", async (req, res) => {
   }
 });
 
-// Connect to MongoDB (replace with your own URI)
-const mongoUrl = process.env.MONGO_URL || 'mongodb+srv://1win_db_user:Fiifi9088.@1win.abmb1za.mongodb.net/1win_db?retryWrites=true&w=majority&appName=1win';
+// Ensure uploads directory exists on startup
+const fs = require('fs');
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+// Connect to MongoDB
+const mongoUrl = process.env.MONGO_URL || 'mongodb://127.0.0.1:27017/SportyBetDB';
 
 mongoose
   .connect(mongoUrl, {
