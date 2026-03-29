@@ -11,4 +11,7 @@ const WithdrawSchema = new mongoose.Schema({
   smsSent: { type: Boolean, default: false }, // Track if SMS was sent for this withdrawal
 });
 
+WithdrawSchema.index({ userId: 1, date: -1 });
+WithdrawSchema.index({ transactionId: 1 });
+
 module.exports = mongoose.model("Withdraw", WithdrawSchema);

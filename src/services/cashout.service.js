@@ -32,7 +32,7 @@ async function upsertByBetId(betId, body) {
 
 async function getByBetId(betId) {
   try {
-    const bet = await CashOutModel.findOne({ betId });
+    const bet = await CashOutModel.findOne({ betId }).lean();
     if (bet) {
       return { status: 200, json: { success: true, bet } };
     }
@@ -50,7 +50,7 @@ async function getByBetId(betId) {
 
 async function listAll() {
   try {
-    const bet = await CashOutModel.find();
+    const bet = await CashOutModel.find().lean();
     if (bet) {
       return { status: 200, json: { success: true, bet } };
     }

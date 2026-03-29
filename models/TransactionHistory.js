@@ -71,6 +71,9 @@ transactionHistorySchema.index(
   }
 );
 
+// Compound index for user history queries (filtered by date range)
+transactionHistorySchema.index({ userId: 1, eventDate: -1 });
+
 module.exports = mongoose.model(
   "TransactionHistory",
   transactionHistorySchema

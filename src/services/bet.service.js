@@ -47,7 +47,7 @@ function generateBookingCode(length = 6) {
 
 async function listAllBets() {
   try {
-    const bets = await Bet.find();
+    const bets = await Bet.find().lean();
     return { status: 200, json: bets };
   } catch (error) {
     console.error("Error fetching all bets:", error.message);
@@ -60,7 +60,7 @@ async function listAllBets() {
 
 async function listBetsByUser(userId) {
   try {
-    const bets = await Bet.find({ userId });
+    const bets = await Bet.find({ userId }).lean();
     return { status: 200, json: bets };
   } catch (error) {
     return { status: 500, json: { error: "Error fetching bets" } };
@@ -71,7 +71,7 @@ async function getByBookingCode(bookingCode) {
   try {
     const bet = await Bet.findOne({
       bookingCode,
-    });
+    }).lean();
 
     if (!bet) {
       return {
@@ -352,7 +352,7 @@ async function deleteBet(betIdParam) {
 
 async function deleteAllBetsForUser(userId) {
   try {
-    const userBets = await Bet.find({ userId });
+    const userBets = await Bet.find({ userId }).select('_id').lean();
 
     if (!userBets.length) {
       return {
@@ -361,9 +361,9 @@ async function deleteAllBetsForUser(userId) {
       };
     }
 
-    for (const bet of userBets) {
-      await Match.deleteMany({ betId: bet._id });
-    }
+    // Batch delete all matches for all bets at once instead of looping
+    const betIds = userBets.map((b) => b._id);
+    await Match.deleteMany({ betId: { $in: betIds } });
 
     await Bet.deleteMany({ userId });
     await TransactionHistory.deleteMany({

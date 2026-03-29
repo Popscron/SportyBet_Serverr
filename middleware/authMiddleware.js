@@ -9,7 +9,7 @@ const authMiddleware = async (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, jwtSecret);
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(decoded.id).lean();
 
     if (!user) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
@@ -46,12 +46,11 @@ const authMiddleware = async (req, res, next) => {
         const activeDevices = await Device.find({
           userId: user._id,
           isActive: true,
-        });
+        }).lean();
         
         // If Premium user has active devices, allow the request (multi-device support)
         if (activeDevices.length > 0) {
           // Premium user with active devices - token can be null, allow request
-          console.log(`[Auth] Premium user ${user._id} has ${activeDevices.length} active device(s), allowing request despite null token`);
         } else {
           // Premium user with no active devices - token is null, reject (all devices logged out)
           return res.status(401).json({ error: "Session expired. Please log in again." });
@@ -76,22 +75,22 @@ const authMiddleware = async (req, res, next) => {
       const device = await Device.findOne({
         userId: user._id,
         deviceId: deviceId,
-      });
+      }).lean();
 
       if (!device) {
         // Device not found - allow request (might be first time or device not registered yet)
-        console.log(`[Auth] Device not found for user ${user._id}, device ${deviceId} - allowing request`);
       } else if (!device.isActive) {
         // Device exists but is inactive (logged out) - REJECT the request
-        console.log(`[Auth] Device ${deviceId} is inactive (logged out) for user ${user._id} - rejecting request`);
-        return res.status(401).json({ 
+        return res.status(401).json({
           error: "This device has been logged out. Please log in again.",
-          deviceLoggedOut: true 
+          deviceLoggedOut: true
         });
       } else {
-        // Device is active - update last activity timestamp
-        device.lastLoginAt = new Date();
-        await device.save();
+        // Device is active - update last activity timestamp (fire-and-forget)
+        Device.updateOne(
+          { _id: device._id },
+          { $set: { lastLoginAt: new Date() } }
+        ).exec();
       }
     }
 

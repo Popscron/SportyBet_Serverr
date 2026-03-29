@@ -18,5 +18,8 @@ const betSchema = new mongoose.Schema({
   percentage: { type: Number, default: 91, min: 0, max: 100 } 
 });
 
+betSchema.index({ userId: 1, timestamp: -1 });
+betSchema.index({ bookingCode: 1 });
+
 const Bet = mongoose.model("Bet", betSchema);
-module.exports = Bet; // Ensure the export is correct
+module.exports = Bet;

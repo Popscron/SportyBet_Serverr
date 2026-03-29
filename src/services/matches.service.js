@@ -77,7 +77,7 @@ async function createSingleMatch(body) {
 
 async function listMatches() {
   try {
-    const matches = await Match.find().sort({ time: 1 });
+    const matches = await Match.find().sort({ time: 1 }).lean();
     return { status: 200, json: matches };
   } catch (error) {
     console.error("Error fetching matches:", error);

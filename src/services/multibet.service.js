@@ -209,7 +209,7 @@ async function addMatch1(body) {
 
 async function listByBetUserId(userId) {
   try {
-    const bets = await MultBet.find({ userId });
+    const bets = await MultBet.find({ userId }).lean();
 
     if (!bets.length) {
       return {
@@ -227,7 +227,7 @@ async function listByBetUserId(userId) {
 
 async function listByRealUserId(userId1) {
   try {
-    const bets = await MultBet.find({ userId1 });
+    const bets = await MultBet.find({ userId1 }).lean();
 
     if (!bets.length) {
       return {

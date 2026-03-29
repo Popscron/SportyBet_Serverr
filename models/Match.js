@@ -15,4 +15,6 @@ const MatchSchema = new mongoose.Schema({
   bestOdd:{type: Boolean, default : true},
 });
 
+MatchSchema.index({ isLive: 1, time: 1 });
+
 module.exports = mongoose.model("Match", MatchSchema);

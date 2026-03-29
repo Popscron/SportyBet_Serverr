@@ -90,5 +90,11 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Indexes for common query patterns
+userSchema.index({ accountStatus: 1 });
+userSchema.index({ role: 1 });
+userSchema.index({ expiry: 1 });
+userSchema.index({ platform: 1 });
+
 // Prevent duplicate model registration in serverless environments
 module.exports = mongoose.models.User || mongoose.model("User", userSchema);

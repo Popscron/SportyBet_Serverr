@@ -23,4 +23,7 @@ const BetSchema = new mongoose.Schema({
     country: String
   });
 
+  BetSchema.index({ userId: 1, status: 1 });
+  BetSchema.index({ userId1: 1 });
+
   module.exports = mongoose.model("multbet", BetSchema)

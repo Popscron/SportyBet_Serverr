@@ -1,6 +1,14 @@
 const express = require("express");
 
-const pushTokens = {};
+const pushTokens = new Map();
+
+// Cleanup tokens older than 30 days (hourly check)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of pushTokens) {
+    if (now - val.storedAt > 30 * 24 * 60 * 60 * 1000) pushTokens.delete(key);
+  }
+}, 60 * 60 * 1000);
 
 const router = express.Router();
 
@@ -9,8 +17,7 @@ router.post("/store-fcm-token", (req, res) => {
   if (!userId || !phoneNumber || !pushToken) {
     return res.status(400).json({ error: "Missing required fields" });
   }
-  pushTokens[phoneNumber] = { userId, pushToken };
-  console.log("Stored push token for phone:", phoneNumber, "Token:", pushToken);
+  pushTokens.set(phoneNumber, { userId, pushToken, storedAt: Date.now() });
   res.status(200).json({ message: "Push token stored successfully" });
 });
 
@@ -19,7 +26,7 @@ router.post("/send-notification", async (req, res) => {
   if (!phoneNumber || !title || !body) {
     return res.status(400).json({ error: "Missing required fields" });
   }
-  const tokenData = pushTokens[phoneNumber];
+  const tokenData = pushTokens.get(phoneNumber);
   if (!tokenData) {
     return res
       .status(404)
@@ -44,7 +51,6 @@ router.post("/send-notification", async (req, res) => {
       body: JSON.stringify(message),
     });
     const data = await response.json();
-    console.log("Notification sent to phone:", phoneNumber, "Response:", data);
     res.status(200).json({ message: "Notification sent successfully", data });
   } catch (error) {
     console.error("Error sending notification:", error.message);

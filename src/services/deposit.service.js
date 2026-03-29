@@ -26,7 +26,7 @@ async function postDeposit(body) {
 
 async function listByUser(userId) {
   try {
-    const deposits = await Deposit.find({ userId }).sort({ date: -1 });
+    const deposits = await Deposit.find({ userId }).sort({ date: -1 }).lean();
     return { status: 200, json: deposits };
   } catch (error) {
     console.error("Get deposits error:", error);

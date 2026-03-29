@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const bodyParser = require("body-parser");
+const compression = require("compression");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const { applyCors } = require("./config/cors");
@@ -30,14 +30,17 @@ function createApp(opts = {}) {
 
   applyCors(app);
   app.use(helmet());
+  app.use(compression());
   app.use(express.json());
   app.use(cookieParser());
-  app.use(bodyParser.json());
   app.use(express.urlencoded({ extended: true }));
 
   if (!serverless) {
     ensureUploadsDir();
-    app.use("/uploads", express.static(path.join(ROOT, "uploads")));
+    app.use("/uploads", express.static(path.join(ROOT, "uploads"), {
+      maxAge: "1d",
+      immutable: true,
+    }));
   } else {
     try {
       const uploadsPath = path.join(ROOT, "uploads");

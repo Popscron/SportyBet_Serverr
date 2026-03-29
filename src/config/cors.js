@@ -17,17 +17,19 @@ const ALLOWED_ORIGINS = [
   "http://localhost:5008",
 ];
 
-function originMatches(allowed, origin) {
+// Pre-compile wildcard patterns once at startup (avoid creating RegExp per request)
+const compiledOrigins = ALLOWED_ORIGINS.map((allowed) => {
   if (allowed.includes("*")) {
-    const pattern = allowed.replace("*", ".*");
-    return new RegExp(`^${pattern}$`).test(origin);
+    return new RegExp(`^${allowed.replace(/\*/g, ".*")}$`);
   }
-  return allowed === origin;
-}
+  return allowed;
+});
 
 function isOriginAllowed(origin) {
   if (!origin) return true;
-  return ALLOWED_ORIGINS.some((allowed) => originMatches(allowed, origin));
+  return compiledOrigins.some((entry) =>
+    entry instanceof RegExp ? entry.test(origin) : entry === origin
+  );
 }
 
 /**
