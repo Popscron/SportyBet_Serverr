@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const SportyHeroBetSchema = new mongoose.Schema({
+const heroCrashBetSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
@@ -51,11 +51,10 @@ const SportyHeroBetSchema = new mongoose.Schema({
 });
 
 // Create indexes for faster queries
-SportyHeroBetSchema.index({ userId: 1, createdAt: -1 });
-SportyHeroBetSchema.index({ roundId: 1 });
-SportyHeroBetSchema.index({ status: 1 });
+heroCrashBetSchema.index({ userId: 1, createdAt: -1 });
+heroCrashBetSchema.index({ roundId: 1 });
+heroCrashBetSchema.index({ status: 1 });
 
-const SportyHeroBet = mongoose.model("SportyHeroBet", SportyHeroBetSchema);
-
-module.exports = SportyHeroBet;
+// Keep registered model name for existing MongoDB collection compatibility
+module.exports = mongoose.model("SportyHeroBet", heroCrashBetSchema);
 

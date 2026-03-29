@@ -27,7 +27,7 @@
     "start": "node app.js",
     "dev": "nodemon app.js",
     "vercel-build": "echo 'Build complete'",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node scripts/smokeRegisterRoutes.js",
     "create-demo": "node scripts/createDemoAccounts.js",
     "check-accounts": "node scripts/checkSpindictAccounts.js",
     "renew-account": "node scripts/renew-account.js",
@@ -35,7 +35,8 @@
     "create-test-account-vercel": "node scripts/create-test-account-vercel.js",
     "test-two-device": "node scripts/test-two-device-session.js",
     "seed-instant-football": "node scripts/seedInstantFootballMatches.js",
-    "migrate-virtual-game-bet": "node scripts/migrateVirtualGameBetFields.js"
+    "migrate-virtual-game-bet": "node scripts/migrateVirtualGameBetFields.js",
+    "smoke-routes": "node scripts/smokeRegisterRoutes.js"
   },
   "author": "",
   "license": "ISC",

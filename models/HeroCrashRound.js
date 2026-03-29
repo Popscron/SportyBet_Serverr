@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
 
-// Stores upcoming crash multiplier for Sporty Hero so
+// Stores upcoming crash multiplier for the crash-hero mini-game so
 // the mobile game and website can both see the same result.
-const SportyHeroRoundSchema = new mongoose.Schema({
+const heroCrashRoundSchema = new mongoose.Schema({
   crashPoint: {
     type: Number,
     required: true,
@@ -29,10 +29,9 @@ const SportyHeroRoundSchema = new mongoose.Schema({
 });
 
 // Faster queries for active round lookup
-SportyHeroRoundSchema.index({ expiresAt: 1, isUsed: 1 });
+heroCrashRoundSchema.index({ expiresAt: 1, isUsed: 1 });
 
-const SportyHeroRound = mongoose.model("SportyHeroRound", SportyHeroRoundSchema);
-
-module.exports = SportyHeroRound;
+// Keep registered model name for existing MongoDB collection compatibility
+module.exports = mongoose.model("SportyHeroRound", heroCrashRoundSchema);
 
 

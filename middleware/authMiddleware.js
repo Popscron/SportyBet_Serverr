@@ -1,14 +1,14 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const Device = require("../models/Device");
-const SECRET_KEY = "your_secret_key";
+const { jwtSecret } = require("../src/config/auth.config");
 
 const authMiddleware = async (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
   if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
 
   try {
-    const decoded = jwt.verify(token, SECRET_KEY);
+    const decoded = jwt.verify(token, jwtSecret);
     const user = await User.findById(decoded.id);
 
     if (!user) {
