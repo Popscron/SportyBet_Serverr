@@ -30,6 +30,17 @@ async function adminLogin({ email, password }) {
 
     const token = jwt.sign({ email }, jwtSecret, { expiresIn: "7d" });
 
+    const cookieOptions = {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+    };
+    // So the cookie is sent from www / apex site to api subdomain (set ADMIN_COOKIE_DOMAIN=.yourdomain.com in production).
+    if (process.env.ADMIN_COOKIE_DOMAIN) {
+      cookieOptions.domain = process.env.ADMIN_COOKIE_DOMAIN;
+    }
+
     return {
       status: 200,
       json: {
@@ -41,12 +52,7 @@ async function adminLogin({ email, password }) {
       setCookie: {
         name: "sportybetToken",
         value: token,
-        options: {
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-          httpOnly: true,
-          sameSite: "none",
-          secure: true,
-        },
+        options: cookieOptions,
       },
     };
   } catch (error) {

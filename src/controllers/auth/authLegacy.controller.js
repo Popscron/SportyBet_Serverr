@@ -17,6 +17,9 @@ const COOKIE_CLEAR = {
   httpOnly: true,
   sameSite: "none",
   secure: true,
+  ...(process.env.ADMIN_COOKIE_DOMAIN
+    ? { domain: process.env.ADMIN_COOKIE_DOMAIN }
+    : {}),
 };
 
 exports.sendOtp = async (req, res) => {
