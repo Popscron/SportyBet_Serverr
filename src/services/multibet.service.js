@@ -161,6 +161,46 @@ async function addMatch1(body) {
       return { status: 400, json: { message: "Invalid type value" } };
     }
 
+    // Idempotency (per bet): prevent duplicate match rows on retries.
+    // Here `userId` is the betId (see how the frontend posts to /add-match1).
+    const existingMatch = await MultBet.findOne({
+      userId,
+      gameId,
+      dateTime,
+      pick,
+      market,
+      outcome,
+    }).lean();
+
+    if (existingMatch) {
+      // Best-effort: update fields to the latest values without creating duplicates.
+      await MultBet.updateOne(
+        { _id: existingMatch._id },
+        {
+          $set: {
+            teams,
+            ftScore,
+            pick,
+            market,
+            outcome,
+            status,
+            odd,
+            chatNumber,
+            type,
+            userId1,
+            liveOdd,
+            league: league || null,
+            country: country || null,
+          },
+        }
+      );
+      const refreshed = await MultBet.findById(existingMatch._id).lean();
+      return {
+        status: 200,
+        json: { match: refreshed },
+      };
+    }
+
     const newMatch = new MultBet({
       userId,
       gameId,

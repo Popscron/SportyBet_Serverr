@@ -191,6 +191,8 @@ async function placeFromCollapsed(body) {
   }
 
   try {
+    const finalBookingCode = bookingCode || generateNumericCode(6);
+
     const userBalance = await UserBalance.findOne({ userId });
     if (!userBalance || userBalance.amount < stake) {
       return {
@@ -202,11 +204,27 @@ async function placeFromCollapsed(body) {
       };
     }
 
+    // Idempotency (per user): if the same bookingCode is retried, don't deduct again / don't insert again.
+    // This prevents multiple bets with the same bookingCode for the same user.
+    const existingBet = await BetModel.findOne({
+      userId,
+      bookingCode: String(finalBookingCode).trim(),
+    }).lean();
+
+    if (existingBet) {
+      return {
+        status: 200,
+        json: {
+          bet: existingBet,
+          balance: userBalance.amount,
+        },
+      };
+    }
+
     userBalance.amount -= stake;
     await userBalance.save();
 
     const betCode = generateNumericCode(6);
-    const finalBookingCode = bookingCode || generateNumericCode(6);
     const currentTime = deviceTime || formatDate(new Date());
     const betTimestamp = deviceTimestamp
       ? new Date(deviceTimestamp)

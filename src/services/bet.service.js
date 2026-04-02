@@ -133,9 +133,38 @@ async function createBet1(body) {
       return { status: 400, json: { error: "All fields are required" } };
     }
 
+    const normalizedBookingCode = String(bookingCode).trim();
+    const normalizedDate = String(date).trim();
+
+    // Idempotency (per user): if the same bookingCode is retried, return existing bet.
+    // NOTE: We don't make bookingCode globally unique across users.
+    const existingBet = await Bet.findOne({
+      userId,
+      bookingCode: normalizedBookingCode,
+    }).lean();
+
+    if (existingBet) {
+      // Update fields from the retry payload so UI/behavior stays consistent.
+      // (We intentionally keep the same betCode and bookingCode.)
+      const updatedBet = await Bet.findOneAndUpdate(
+        { userId, bookingCode: normalizedBookingCode },
+        { $set: { date: normalizedDate, stake, odd } },
+        { new: true }
+      );
+
+      return { status: 201, json: updatedBet };
+    }
+
     const betCode = generateBookingCode(6);
 
-    const newBet = new Bet({ userId, date, betCode, stake, odd, bookingCode });
+    const newBet = new Bet({
+      userId,
+      date: normalizedDate,
+      betCode,
+      stake,
+      odd,
+      bookingCode: normalizedBookingCode,
+    });
     const savedBet = await newBet.save();
 
     await recordBetHistory(savedBet);
