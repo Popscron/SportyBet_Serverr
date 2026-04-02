@@ -2,20 +2,40 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadPath = path.join(__dirname, "..", "uploads");
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath, { recursive: true });
+// In Vercel/serverless, the filesystem at `/var/task` is not writable.
+// `/tmp` is writable, but content is not guaranteed to persist long-term.
+let storage;
+const isServerless =
+  process.env.VERCEL ||
+  process.env.NODE_ENV === "production" ||
+  process.env.VERCEL_ENV;
+
+const uploadPath = isServerless ? path.join("/tmp", "uploads") : path.join(__dirname, "..", "uploads");
+
+try {
+  if (!fs.existsSync(uploadPath)) {
+    fs.mkdirSync(uploadPath, { recursive: true });
+  }
+} catch (err) {
+  // Last resort: avoid crashing, but upload handlers relying on filename may not work well.
+  storage = multer.memoryStorage();
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + "-" + file.fieldname + path.extname(file.originalname);
-    cb(null, uniqueName);
-  },
-});
+if (!storage) {
+  storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, uploadPath);
+    },
+    filename: (req, file, cb) => {
+      const uniqueName =
+        Date.now() +
+        "-" +
+        file.fieldname +
+        path.extname(file.originalname);
+      cb(null, uniqueName);
+    },
+  });
+}
 
 module.exports = multer({
   storage,

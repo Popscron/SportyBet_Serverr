@@ -43,9 +43,15 @@ function createApp(opts = {}) {
     }));
   } else {
     try {
-      const uploadsPath = path.join(ROOT, "uploads");
-      if (fs.existsSync(uploadsPath)) {
-        app.use("/uploads", express.static(uploadsPath));
+      // In Vercel serverless, disk persistence for `./uploads` isn't guaranteed.
+      // `/tmp/uploads` is writable and used by our Vercel-safe multer config.
+      const localUploadsPath = path.join(ROOT, "uploads");
+      const tmpUploadsPath = path.join("/tmp", "uploads");
+
+      if (fs.existsSync(localUploadsPath)) {
+        app.use("/uploads", express.static(localUploadsPath));
+      } else if (fs.existsSync(tmpUploadsPath)) {
+        app.use("/uploads", express.static(tmpUploadsPath));
       }
     } catch (_) {
       /* serverless: optional */
