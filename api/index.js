@@ -69,7 +69,6 @@ const userImgRoutes = require("../routes/UserImageRoute.js");
 const BookingRoutes = require("../routes/BookingRoute.js");
 const notification = require("../routes/notification.js");
 const manualCardRoutes = require("../routes/manualCardRoute.js");
-const spinBottleRoutes = require("../routes/spinBottleRoute.js");
 const sportyHeroRoutes = require("../routes/sportyHeroRoute.js");
 const nextUpdateRoutes = require("../routes/nextUpdateRoute.js");
 const adminRoutes = require("../routes/adminRoutes.js");
@@ -79,17 +78,10 @@ const smsRoutes = require("../routes/smsRoute.js");
 const allowedOrigins = [
   "https://admingh.online",
   "https://www.admingh.online",
-  "https://1win-web.vercel.app",
-  "https://1win-web-*.vercel.app",
   "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
-  "https://spindict.com",
-  "https://www.spindict.com",
-  "https://spindict.vercel.app",
-  "https://spindict-*.vercel.app",
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
-  "http://localhost:5177",
   "http://localhost:5008",
 ];
 
@@ -259,23 +251,10 @@ app.use("/api", userImgRoutes);
 app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
-app.use("/api", spinBottleRoutes);
 app.use("/api", sportyHeroRoutes);
 app.use("/api", nextUpdateRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/sms", smsRoutes);
-
-// Spindict routes
-const spindictRoutes = require("../routes/spindictRoutes");
-app.use("/api/spindict", spindictRoutes);
-
-// 1Win routes - mounted at /api/1win
-const oneWinAuthRoutes = require("../routes/1win/auth");
-const oneWinAdminRoutes = require("../routes/1win/admin");
-const oneWinPaymentRoutes = require("../routes/1win/payments");
-app.use("/api/1win/auth", oneWinAuthRoutes);
-app.use("/api/1win/admin", oneWinAdminRoutes);
-app.use("/api/1win/payments", oneWinPaymentRoutes);
 
 const pushTokens = {};
 

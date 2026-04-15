@@ -23,7 +23,6 @@ const userImgRoutes = require("./routes/UserImageRoute.js");
 const BookingRoutes = require("./routes/BookingRoute.js");
 const notification = require("./routes/notification.js");
 const manualCardRoutes = require("./routes/manualCardRoute.js");
-const spinBottleRoutes = require("./routes/spinBottleRoute.js");
 const maxBonusRoutes = require("./routes/maxBonusRoute.js");
 const sportyHeroRoutes = require("./routes/sportyHeroRoute");
 const virtualGameRoutes = require("./routes/virtualGameRoute");
@@ -42,15 +41,10 @@ app.options("*", (req, res) => {
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
-        "https://spindict.com",
-        "https://www.spindict.com",
-        "https://spindict.vercel.app",
-        "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
-        "http://localhost:5177",
       ];
   
   // Check if origin matches any allowed origin (including wildcard patterns)
@@ -77,15 +71,10 @@ app.use(
       const allowedOrigins = [
         "https://admingh.online",
         "https://www.admingh.online",
-        "https://spindict.com",
-        "https://www.spindict.com",
-        "https://spindict.vercel.app",
-        "https://spindict-*.vercel.app", // Allow all Spindict Vercel preview deployments
         "https://*.vercel.app", // SportyBet dashboard and other Vercel deployments
         "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:5175",
-        "http://localhost:5177",
       ];
       
       // Allow requests with no origin (like mobile apps, Postman, or Tasker)
@@ -147,7 +136,6 @@ app.use("/api", userImgRoutes);
 app.use("/api", BookingRoutes);
 app.use("/api", notification);
 app.use("/api", manualCardRoutes);
-app.use("/api", spinBottleRoutes);
 app.use("/api", sportyHeroRoutes);
 app.use("/api", virtualGameRoutes);
 app.use("/api", instantFootballMatchRoutes);
@@ -156,18 +144,6 @@ app.use("/api", bankAccountRoutes);
 app.use("/api", nextUpdateRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/sms", smsRoutes);
-
-// Spindict routes
-const spindictRoutes = require("./routes/spindictRoutes");
-app.use("/api/spindict", spindictRoutes);
-
-// 1Win routes - mounted at /api/1win
-const oneWinAuthRoutes = require("./routes/1win/auth");
-const oneWinAdminRoutes = require("./routes/1win/admin");
-const oneWinPaymentRoutes = require("./routes/1win/payments");
-app.use("/api/1win/auth", oneWinAuthRoutes);
-app.use("/api/1win/admin", oneWinAdminRoutes);
-app.use("/api/1win/payments", oneWinPaymentRoutes);
 
 const pushTokens = {};
 
