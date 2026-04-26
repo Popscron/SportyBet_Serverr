@@ -1,7 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const sharp = require("sharp");
-const ImageModel = require("../../models/ImagesModel");
+const HomeBanner = require("../../models/HomeBannerModel");
 
 /** Output size for home banner tiles (square, cover-cropped). */
 const BANNER_OUTPUT_PX = 640;
@@ -9,18 +9,64 @@ const BANNER_OUTPUT_PX = 640;
 /** Max banners (append + replace). */
 const MAX_HOME_BANNERS = 24;
 
-function compactBannerList(images) {
-  if (!Array.isArray(images)) return [];
-  return images
-    .map((x) => {
-      if (x == null) return null;
-      if (typeof x === "string") {
-        const s = x.trim();
-        return s || null;
-      }
-      return null;
-    })
-    .filter(Boolean);
+const TITLE_MAX = 120;
+
+function sanitizeTitle(raw) {
+  if (raw == null) return "";
+  return String(raw)
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, TITLE_MAX);
+}
+
+/** Normalize loose input (e.g. migration / bad rows) into { url, title }. */
+function normalizeBannerEntry(entry) {
+  if (entry == null) return null;
+  if (typeof entry === "string") {
+    const u = entry.trim();
+    return u ? { url: u, title: "" } : null;
+  }
+  if (typeof entry === "object") {
+    const raw = entry.url || entry.image;
+    const u = raw != null ? String(raw).trim() : "";
+    if (!u) return null;
+    const title = sanitizeTitle(entry.title ?? entry.text ?? entry.label ?? "");
+    return { url: u, title };
+  }
+  return null;
+}
+
+function compactBannerList(slides) {
+  if (!Array.isArray(slides)) return [];
+  const out = [];
+  for (const x of slides) {
+    const n = normalizeBannerEntry(x);
+    if (n) out.push(n);
+    if (out.length >= MAX_HOME_BANNERS) break;
+  }
+  return out;
+}
+
+function entryUrl(entry) {
+  if (entry == null) return null;
+  if (typeof entry === "string") return entry.trim() || null;
+  if (typeof entry === "object" && entry.url) return String(entry.url).trim() || null;
+  return null;
+}
+
+/** API + app still expect `data.images` as `{ url, title }[]`. */
+function bannerDocToClientData(doc) {
+  if (!doc) {
+    return { images: [] };
+  }
+  const plain = typeof doc.toObject === "function" ? doc.toObject() : { ...doc };
+  const images = compactBannerList(plain.slides || []);
+  return {
+    _id: plain._id,
+    createdAt: plain.createdAt,
+    updatedAt: plain.updatedAt,
+    images,
+  };
 }
 
 function deleteLocalFile(fileUrl) {
@@ -36,10 +82,11 @@ function deleteLocalFile(fileUrl) {
   }
 }
 
-function deleteLocalFiles(fileUrls) {
-  if (!Array.isArray(fileUrls)) return;
-  for (const url of fileUrls) {
-    if (url) deleteLocalFile(url);
+function deleteLocalFiles(entries) {
+  if (!Array.isArray(entries)) return;
+  for (const e of entries) {
+    const u = entryUrl(e);
+    if (u) deleteLocalFile(u);
   }
 }
 
@@ -82,30 +129,34 @@ async function uploadImages(files) {
       };
     }
 
-    const imageUrls = files.map((file) => `/uploads/${file.filename}`);
+    const slides = files.map((file) => ({
+      url: `/uploads/${file.filename}`,
+      title: "",
+    }));
 
-    let existingImages = await ImageModel.findOne();
+    let doc = await HomeBanner.findOne();
 
-    if (existingImages) {
-      deleteLocalFiles(existingImages.images);
-      existingImages.images = imageUrls.slice(0, MAX_HOME_BANNERS);
-      await existingImages.save();
+    if (doc) {
+      deleteLocalFiles(doc.slides);
+      doc.slides = slides.slice(0, MAX_HOME_BANNERS);
+      doc.markModified("slides");
+      await doc.save();
       return {
         status: 200,
         json: {
           message: "Images updated successfully!",
-          data: existingImages,
+          data: bannerDocToClientData(doc),
         },
       };
     }
 
-    const newImages = new ImageModel({ images: imageUrls.slice(0, MAX_HOME_BANNERS) });
-    await newImages.save();
+    doc = new HomeBanner({ slides: slides.slice(0, MAX_HOME_BANNERS) });
+    await doc.save();
     return {
       status: 201,
       json: {
         message: "Images uploaded successfully!",
-        data: newImages,
+        data: bannerDocToClientData(doc),
       },
     };
   } catch (error) {
@@ -129,21 +180,14 @@ function isAppendRequest(body) {
 async function uploadSingleImage(file, body) {
   try {
     const append = isAppendRequest(body);
+    const title = sanitizeTitle(body?.title ?? body?.text ?? body?.label);
 
     console.log("Upload request received:", {
       hasFile: !!file,
       bannerIndex: body?.bannerIndex,
       mode: body?.mode,
-      appendRaw: body?.append,
       append,
-      fileInfo: file
-        ? {
-            fieldname: file.fieldname,
-            originalname: file.originalname,
-            mimetype: file.mimetype,
-            size: file.size,
-          }
-        : null,
+      titleLen: title.length,
     });
 
     if (!file) {
@@ -168,24 +212,28 @@ async function uploadSingleImage(file, body) {
       };
     }
 
-    let existingImages = await ImageModel.findOne();
+    const slide = { url: imageUrl, title };
 
-    if (!existingImages) {
-      const newDoc = new ImageModel({ images: [imageUrl] });
-      await newDoc.save();
+    let doc = await HomeBanner.findOne();
+
+    if (!doc) {
+      doc = new HomeBanner({ slides: [slide] });
+      await doc.save();
       return {
         status: 201,
         json: {
           message: "Banner image uploaded successfully!",
           imageUrl,
+          title,
+          slide,
           append: true,
           index: 0,
-          data: newDoc,
+          data: bannerDocToClientData(doc),
         },
       };
     }
 
-    let arr = compactBannerList(existingImages.images || []);
+    let arr = compactBannerList(doc.slides || []);
 
     if (append) {
       if (arr.length >= MAX_HOME_BANNERS) {
@@ -196,7 +244,7 @@ async function uploadSingleImage(file, body) {
           },
         };
       }
-      arr.push(imageUrl);
+      arr.push(slide);
     } else {
       const idx = parseInt(body?.bannerIndex, 10);
       if (Number.isNaN(idx) || idx < 0 || idx >= arr.length) {
@@ -209,7 +257,7 @@ async function uploadSingleImage(file, body) {
           },
         };
       }
-      const oldUrl = arr[idx];
+      const oldUrl = entryUrl(arr[idx]);
       if (oldUrl) {
         try {
           deleteLocalFile(oldUrl);
@@ -217,12 +265,12 @@ async function uploadSingleImage(file, body) {
           console.warn("Could not delete old banner file:", delErr.message);
         }
       }
-      arr[idx] = imageUrl;
+      arr[idx] = slide;
     }
 
-    existingImages.images = arr;
-    existingImages.markModified("images");
-    await existingImages.save();
+    doc.slides = arr;
+    doc.markModified("slides");
+    await doc.save();
 
     const outIndex = append ? arr.length - 1 : parseInt(body?.bannerIndex, 10);
 
@@ -231,9 +279,11 @@ async function uploadSingleImage(file, body) {
       json: {
         message: "Banner image updated successfully!",
         imageUrl,
+        title,
+        slide,
         append,
         index: outIndex,
-        data: existingImages,
+        data: bannerDocToClientData(doc),
       },
     };
   } catch (error) {
@@ -252,9 +302,9 @@ async function uploadSingleImage(file, body) {
 
 async function getImages() {
   try {
-    const images = await ImageModel.findOne();
+    const doc = await HomeBanner.findOne();
 
-    if (!images) {
+    if (!doc) {
       return {
         status: 200,
         json: {
@@ -264,15 +314,11 @@ async function getImages() {
       };
     }
 
-    const payload =
-      typeof images.toObject === "function" ? images.toObject() : images;
-    payload.images = compactBannerList(payload.images || []);
-
     return {
       status: 200,
       json: {
         message: "Images retrieved successfully",
-        data: payload,
+        data: bannerDocToClientData(doc),
       },
     };
   } catch (error) {
