@@ -39,7 +39,8 @@ if (!storage) {
 
 module.exports = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  /** Match reverse-proxy limits (nginx often defaults to 1m — see deploy/nginx.client_max_body_size.conf.example). */
+  limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = ["image/jpeg", "image/jpg", "image/png"];
     if (allowed.includes(file.mimetype)) {
