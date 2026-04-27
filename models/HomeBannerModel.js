@@ -25,6 +25,13 @@ const bannerSlideSchema = new mongoose.Schema(
  */
 const homeBannerSchema = new mongoose.Schema(
   {
+    // Singleton key: all banner reads/writes target this document.
+    kind: {
+      type: String,
+      default: "home",
+      trim: true,
+      index: true,
+    },
     slides: {
       type: [bannerSlideSchema],
       default: [],
