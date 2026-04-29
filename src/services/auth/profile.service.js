@@ -23,6 +23,7 @@ async function getProfileStats(userId) {
       stats = await UserProfileStats.create({
         user: userId,
         giftsCount: 0,
+        luckyWheelCount: 0,
         badgeCount: 1,
       });
     }
@@ -30,8 +31,9 @@ async function getProfileStats(userId) {
       status: 200,
       json: {
         success: true,
-        giftsCount: stats.giftsCount,
-        badgeCount: stats.badgeCount,
+        giftsCount: stats.giftsCount ?? 0,
+        luckyWheelCount: stats.luckyWheelCount ?? 0,
+        badgeCount: stats.badgeCount ?? 1,
       },
     };
   } catch (error) {
@@ -42,17 +44,20 @@ async function getProfileStats(userId) {
 
 async function updateProfileStats(userId, body) {
   try {
-    const { giftsCount, badgeCount } = body;
+    const { giftsCount, luckyWheelCount, badgeCount } = body;
     let stats = await UserProfileStats.findOne({ user: userId });
     if (!stats) {
       stats = await UserProfileStats.create({
         user: userId,
         giftsCount: 0,
+        luckyWheelCount: 0,
         badgeCount: 1,
       });
     }
     if (typeof giftsCount === "number" && giftsCount >= 0)
       stats.giftsCount = giftsCount;
+    if (typeof luckyWheelCount === "number" && luckyWheelCount >= 0)
+      stats.luckyWheelCount = luckyWheelCount;
     if (typeof badgeCount === "number" && badgeCount >= 0)
       stats.badgeCount = badgeCount;
     await stats.save();
@@ -60,8 +65,9 @@ async function updateProfileStats(userId, body) {
       status: 200,
       json: {
         success: true,
-        giftsCount: stats.giftsCount,
-        badgeCount: stats.badgeCount,
+        giftsCount: stats.giftsCount ?? 0,
+        luckyWheelCount: stats.luckyWheelCount ?? 0,
+        badgeCount: stats.badgeCount ?? 1,
       },
     };
   } catch (error) {
