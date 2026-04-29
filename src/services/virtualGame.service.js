@@ -1,5 +1,5 @@
 const VirtualGameBet = require("../../models/VirtualGameBet");
-const Deposit = require("../../models/deposite");
+const Deposit = require("../../models/Deposit");
 const User = require("../../models/user");
 
 function generateBookingCode25() {
@@ -322,7 +322,7 @@ async function updateBet(ticketIdParam, body) {
       try {
         const deposit = await Deposit.findOne({ userId: bet.userId });
         if (deposit) {
-          deposit.amount += bet.totalReturn;
+          deposit.amount = Number(deposit.amount || 0) + Number(bet.totalReturn || 0);
           await deposit.save();
         }
       } catch (balanceError) {

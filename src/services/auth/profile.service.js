@@ -54,12 +54,13 @@ async function updateProfileStats(userId, body) {
         badgeCount: 1,
       });
     }
-    if (typeof giftsCount === "number" && giftsCount >= 0)
-      stats.giftsCount = giftsCount;
-    if (typeof luckyWheelCount === "number" && luckyWheelCount >= 0)
-      stats.luckyWheelCount = luckyWheelCount;
-    if (typeof badgeCount === "number" && badgeCount >= 0)
-      stats.badgeCount = badgeCount;
+    // Accept both JSON numbers and numeric strings to avoid silent skips.
+    const g = Number(giftsCount);
+    const lw = Number(luckyWheelCount);
+    const b = Number(badgeCount);
+    if (Number.isFinite(g) && g >= 0) stats.giftsCount = g;
+    if (Number.isFinite(lw) && lw >= 0) stats.luckyWheelCount = lw;
+    if (Number.isFinite(b) && b >= 0) stats.badgeCount = b;
     await stats.save();
     return {
       status: 200,
