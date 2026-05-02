@@ -3,9 +3,18 @@ const { getMongoUrl } = require("./env");
 
 mongoose.set("strictQuery", false);
 
+const mongoPoolMax = Number.parseInt(String(process.env.MONGO_MAX_POOL_SIZE || "25"), 10);
+const mongoPoolMin = Number.parseInt(String(process.env.MONGO_MIN_POOL_SIZE || "2"), 10);
+
 const defaultOptions = {
-  maxPoolSize: 50,
-  minPoolSize: 5,
+  maxPoolSize:
+    Number.isFinite(mongoPoolMax) && mongoPoolMax >= 5
+      ? Math.min(50, mongoPoolMax)
+      : 25,
+  minPoolSize:
+    Number.isFinite(mongoPoolMin) && mongoPoolMin >= 0
+      ? Math.min(10, mongoPoolMin)
+      : 2,
   maxIdleTimeMS: 30000,
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,

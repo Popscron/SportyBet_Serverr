@@ -5,7 +5,6 @@ const MaxBonusSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    index: true,
   },
   bookingCode: {
     type: String,
@@ -28,9 +27,8 @@ const MaxBonusSchema = new mongoose.Schema({
   },
 });
 
-// Create indexes for faster queries
+// Compound unique index (prefix covers userId-only queries)
 MaxBonusSchema.index({ userId: 1, bookingCode: 1 }, { unique: true });
-MaxBonusSchema.index({ userId: 1 });
 
 // Update the updatedAt field before saving
 MaxBonusSchema.pre('save', function(next) {

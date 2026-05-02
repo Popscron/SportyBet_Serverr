@@ -9,18 +9,15 @@ const transactionHistorySchema = new mongoose.Schema(
     },
     sourceId: {
       type: mongoose.Schema.Types.ObjectId,
-      index: true,
     },
     sourceCollection: {
       type: String,
       enum: ["Deposit", "Withdraw", "Winning", "Bet"],
       required: true,
-      index: true,
     },
     type: {
       type: String,
       required: true,
-      index: true,
     },
     amount: {
       type: Number,
@@ -41,7 +38,6 @@ const transactionHistorySchema = new mongoose.Schema(
     },
     eventDate: {
       type: Date,
-      index: true,
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
@@ -49,7 +45,6 @@ const transactionHistorySchema = new mongoose.Schema(
     isDeleted: {
       type: Boolean,
       default: false,
-      index: true,
     },
     deletedAt: {
       type: Date,

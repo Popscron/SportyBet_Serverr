@@ -28,6 +28,11 @@ function createApp(opts = {}) {
   const serverless = Boolean(opts.serverless);
   const app = express();
 
+  // Behind Nginx / a load balancer so express-rate-limit and req.ip are correct
+  if (String(process.env.TRUST_PROXY || "1").toLowerCase() !== "0") {
+    app.set("trust proxy", 1);
+  }
+
   applyCors(app);
   app.use(helmet());
   app.use(compression());

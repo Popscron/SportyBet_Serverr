@@ -5,12 +5,10 @@ const heroCrashBetSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    index: true,
   },
   roundId: {
     type: String,
     required: true,
-    index: true,
   },
   panelId: {
     type: String,
@@ -46,7 +44,6 @@ const heroCrashBetSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true,
   },
 });
 

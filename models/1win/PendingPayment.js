@@ -66,9 +66,8 @@ const pendingPaymentSchema = new mongoose.Schema(
   }
 );
 
-// Index for faster queries
+// Index for faster queries (`reference` is already indexed via unique: true)
 pendingPaymentSchema.index({ userId: 1, status: 1 });
-pendingPaymentSchema.index({ reference: 1 });
 pendingPaymentSchema.index({ expiresAt: 1 });
 
 // Check if payment is expired

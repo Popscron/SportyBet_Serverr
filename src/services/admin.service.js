@@ -1,8 +1,56 @@
+const mongoose = require("mongoose");
 const DeviceRequest = require("../../models/DeviceRequest");
 const DeviceDeactivationRequest = require("../../models/DeviceDeactivationRequest");
 const Device = require("../../models/Device");
 const User = require("../../models/user");
 const NextUpdateDate = require("../../models/NextUpdateDate");
+
+/**
+ * Resolve an active device row for logout: exact deviceId, Mongo _id, or short/suffix match.
+ */
+async function findActiveDeviceForLogout(userId, deviceIdentifier) {
+  const idRaw =
+    deviceIdentifier != null ? String(deviceIdentifier).trim() : "";
+  if (!idRaw) return null;
+
+  let device = await Device.findOne({
+    userId,
+    deviceId: idRaw,
+    isActive: true,
+  });
+  if (device) return device;
+
+  if (mongoose.Types.ObjectId.isValid(idRaw)) {
+    device = await Device.findOne({
+      userId,
+      _id: new mongoose.Types.ObjectId(idRaw),
+      isActive: true,
+    });
+    if (device) return device;
+  }
+
+  const active = await Device.find({ userId, isActive: true });
+  const lower = idRaw.toLowerCase();
+
+  const byExactDeviceId = active.find(
+    (d) => d.deviceId && String(d.deviceId).toLowerCase() === lower
+  );
+  if (byExactDeviceId) return byExactDeviceId;
+
+  const suffixMatches = active.filter(
+    (d) =>
+      (d.deviceId && String(d.deviceId).toLowerCase().endsWith(lower)) ||
+      String(d._id).toLowerCase().endsWith(lower)
+  );
+  if (suffixMatches.length === 1) return suffixMatches[0];
+
+  const contains = active.filter(
+    (d) => d.deviceId && String(d.deviceId).toLowerCase().includes(lower)
+  );
+  if (contains.length === 1) return contains[0];
+
+  return null;
+}
 
 function getSubscriptionInfo(user) {
   const isActive = !user.expiry || new Date(user.expiry) > new Date();
@@ -235,7 +283,8 @@ async function approveDeviceRequest(requestId, body, reviewer) {
 
     if (activeDevices.length >= maxDevices) {
       if (devicesToLogout.length === 0 && maxDevices === 1) {
-        devicesToLogout = activeDevices.map((d) => d.deviceId).filter(Boolean);
+        // Prefer Mongo _id so logout is unambiguous (deviceId strings can be shortened in clients)
+        devicesToLogout = activeDevices.map((d) => String(d._id)).filter(Boolean);
         console.log(`[Admin Approve] Auto-selected devices to logout for 1-device plan:`, devicesToLogout);
       }
 
@@ -258,26 +307,10 @@ async function approveDeviceRequest(requestId, body, reviewer) {
 
       const logoutResults = [];
       for (const deviceIdentifier of devicesToLogout) {
-        let deviceToLogout = await Device.findOne({
-          userId: user._id,
-          deviceId: deviceIdentifier,
-          isActive: true,
-        });
-
-        if (!deviceToLogout) {
-          try {
-            deviceToLogout = await Device.findOne({
-              userId: user._id,
-              _id: deviceIdentifier,
-              isActive: true,
-            });
-            console.log(`[Admin Approve] Found device by _id: ${deviceIdentifier}`);
-          } catch (idError) {
-            console.log(
-              `[Admin Approve] ${deviceIdentifier} is not a valid ObjectId, using deviceId search`
-            );
-          }
-        }
+        const deviceToLogout = await findActiveDeviceForLogout(
+          user._id,
+          deviceIdentifier
+        );
 
         if (!deviceToLogout) {
           console.error(
