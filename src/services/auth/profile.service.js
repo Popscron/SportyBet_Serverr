@@ -3,18 +3,20 @@ const User = require("../../../models/user");
 const Balance = require("../../../models/UserBalance");
 const UserProfileStats = require("../../../models/UserProfileStats");
 const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
+const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const Device = require("../../../models/Device");
 
 async function getProfile(userId) {
   try {
     const user = await User.findById(userId).select("-password").lean();
     if (!user) return { status: 404, json: { error: "User not found" } };
-    const entitlements = getEntitlements(user);
+    const subscription = normalizeSubscriptionTier(user.subscription, user);
+    const entitlements = getEntitlements({ ...user, subscription });
     return {
       status: 200,
       json: {
         success: true,
-        user: { ...user, entitlements },
+        user: { ...user, subscription, entitlements },
         entitlements,
       },
     };

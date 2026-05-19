@@ -95,19 +95,24 @@ const TIER_DEFINITIONS = {
 };
 
 
+/** Old DB labels → canonical tier (do not upgrade to Optimum). */
 const LEGACY_TIER_ALIASES = {
   Basic: "Premium",
-  Games: "Premium",
-  "Premium Plus (legacy)": "Optimum",
 };
 
-function normalizeSubscriptionTier(raw) {
-  const key = String(raw || "Premium").trim();
+function normalizeSubscriptionTier(raw, user) {
+  const original = String(raw || "Premium").trim();
+  let key = original;
+
+  const caseMatch = Object.keys(TIER_DEFINITIONS).find(
+    (t) => t.toLowerCase() === key.toLowerCase()
+  );
+  if (caseMatch) key = caseMatch;
+
+  if (LEGACY_TIER_ALIASES[key]) key = LEGACY_TIER_ALIASES[key];
+  if (LEGACY_TIER_ALIASES[original]) key = LEGACY_TIER_ALIASES[original];
+
   if (TIER_DEFINITIONS[key]) return key;
-  if (key === "Premium Plus") {
-    return "Premium Plus";
-  }
-  if (LEGACY_TIER_ALIASES[key]) return LEGACY_TIER_ALIASES[key];
   return "Premium";
 }
 

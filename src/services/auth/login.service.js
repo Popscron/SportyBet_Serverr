@@ -4,7 +4,8 @@ const User = require("../../../models/user");
 const UserDeactivation = require("../../../models/UserDeactivation");
 const Device = require("../../../models/Device");
 const DeviceRequest = require("../../../models/DeviceRequest");
-const { getSubscriptionInfo } = require("./subscription.helper");
+const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
+const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const { jwtSecret } = require("../../config/auth.config");
 
 /**
@@ -377,7 +378,9 @@ async function login(req, res) {
       expiresIn: "7d",
     });
 
-    const subInfo = getSubscriptionInfo(user);
+    const subscription = normalizeSubscriptionTier(user.subscription, user);
+    const subInfo = getSubscriptionInfo({ ...user, subscription });
+    const entitlements = getEntitlements({ ...user, subscription });
     const maxDevices = subInfo.maxDevices ?? 1;
     const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
 
@@ -399,7 +402,7 @@ async function login(req, res) {
       message: "Login successful",
       token,
       isDefaultPassword: user.isDefaultPassword || false,
-      entitlements: subInfo.entitlements,
+      entitlements,
       user: {
         _id: user._id,
         name: user.name,
@@ -407,11 +410,11 @@ async function login(req, res) {
         username: user.username,
         mobileNumber: user.mobileNumber,
         role: user.role,
-        subscription: user.subscription,
+        subscription,
         expiry: user.expiry,
-        allowedGames: user.allowedGames,
+        allowedGames: subscription === "Premium Plus" ? user.allowedGames : undefined,
         isDefaultPassword: user.isDefaultPassword || false,
-        entitlements: subInfo.entitlements,
+        entitlements,
       },
     });
   } catch (err) {

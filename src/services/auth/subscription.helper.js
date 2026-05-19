@@ -43,13 +43,18 @@ function getEntitlements(user) {
     };
   }
 
-  const tier = normalizeSubscriptionTier(user.subscription);
+  const tier = normalizeSubscriptionTier(user.subscription, user);
   const def = TIER_DEFINITIONS[tier] || TIER_DEFINITIONS.Premium;
   const isActive = isSubscriptionActive(user);
 
   let games = [...(def.games || [])];
-  if (def.allowCustomGames && Array.isArray(user.allowedGames) && user.allowedGames.length > 0) {
-    games = user.allowedGames.filter(Boolean);
+  if (def.allowCustomGames) {
+    const picked = Array.isArray(user.allowedGames)
+      ? user.allowedGames.filter(Boolean).slice(0, 2)
+      : [];
+    if (picked.length > 0) {
+      games = picked;
+    }
   }
 
   const inactive = !isActive;
@@ -114,7 +119,7 @@ function listTiersForAdmin() {
 }
 
 function applyTierSideEffects(user, newTier, { previousTier } = {}) {
-  const def = TIER_DEFINITIONS[normalizeSubscriptionTier(newTier)];
+  const def = TIER_DEFINITIONS[normalizeSubscriptionTier(newTier, user)];
   if (!def || !user) return;
 
   if (def.smsPointsOnAssign && previousTier !== newTier) {
@@ -128,6 +133,7 @@ function applyTierSideEffects(user, newTier, { previousTier } = {}) {
 
   if (!def.allowCustomGames) {
     user.allowedGames = undefined;
+    user.markModified?.("allowedGames");
   }
 }
 

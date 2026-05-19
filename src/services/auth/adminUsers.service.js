@@ -195,9 +195,6 @@ async function updateUserFields(body) {
     const previousTier = user.subscription;
     const updateData = {};
     if (username !== undefined) updateData.username = username;
-    if (subscription !== undefined) {
-      updateData.subscription = normalizeSubscriptionTier(subscription);
-    }
     if (expiry !== undefined) {
       updateData.expiry = expiry ? new Date(expiry) : null;
     }
@@ -205,6 +202,16 @@ async function updateUserFields(body) {
       updateData.allowedGames = Array.isArray(allowedGames)
         ? allowedGames.filter(Boolean).slice(0, 2)
         : undefined;
+    }
+    if (subscription !== undefined) {
+      const normalized = normalizeSubscriptionTier(subscription, {
+        allowedGames: updateData.allowedGames ?? user.allowedGames,
+      });
+      updateData.subscription = normalized;
+      const { TIER_DEFINITIONS } = require("../../constants/subscriptionTiers");
+      if (!TIER_DEFINITIONS[normalized]?.allowCustomGames) {
+        updateData.allowedGames = undefined;
+      }
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -219,6 +226,16 @@ async function updateUserFields(body) {
       applyTierSideEffects(user, user.subscription, { previousTier });
     }
     await user.save();
+    if (
+      subscription !== undefined &&
+      updateData.allowedGames === undefined &&
+      !require("../../constants/subscriptionTiers").TIER_DEFINITIONS[
+        user.subscription
+      ]?.allowCustomGames
+    ) {
+      await User.updateOne({ _id: user._id }, { $unset: { allowedGames: 1 } });
+      user.allowedGames = undefined;
+    }
 
     const entitlements = getEntitlements(user);
 
