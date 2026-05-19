@@ -1,12 +1,8 @@
 const HeroCrashRound = require("../../models/HeroCrashRound");
 const HeroCrashBet = require("../../models/HeroCrashBet");
 const User = require("../../models/user");
-
-function isPremiumPlusActive(user) {
-  if (!user) return false;
-  const isActive = !user.expiry || new Date(user.expiry) > new Date();
-  return isActive && user.subscription === "Premium Plus";
-}
+const { GAME_IDS } = require("../constants/subscriptionTiers");
+const { assertGameAccess } = require("./auth/subscription.helper");
 
 /**
  * @returns {{ user: object } | { error: { status, json } }}
@@ -20,7 +16,9 @@ async function checkPremiumPlusAccess(userId) {
       },
     };
   }
-  const user = await User.findById(userId).select("subscription expiry role");
+  const user = await User.findById(userId).select(
+    "subscription expiry role allowedGames smsPoints"
+  );
   if (!user) {
     return {
       error: {
@@ -29,18 +27,9 @@ async function checkPremiumPlusAccess(userId) {
       },
     };
   }
-  if (user.role === "admin") return { user };
-  if (!isPremiumPlusActive(user)) {
-    return {
-      error: {
-        status: 403,
-        json: {
-          success: false,
-          error: "Premium Plus subscription required",
-          subscriptionType: user.subscription || "Basic",
-        },
-      },
-    };
+  const access = assertGameAccess(user, GAME_IDS.HERO_CRASH);
+  if (!access.ok) {
+    return { error: { status: access.status, json: access.json } };
   }
   return { user };
 }

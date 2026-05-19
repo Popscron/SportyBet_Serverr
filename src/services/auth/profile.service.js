@@ -2,14 +2,22 @@ const mongoose = require("mongoose");
 const User = require("../../../models/user");
 const Balance = require("../../../models/UserBalance");
 const UserProfileStats = require("../../../models/UserProfileStats");
-const { getSubscriptionInfo } = require("./subscription.helper");
+const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
 const Device = require("../../../models/Device");
 
 async function getProfile(userId) {
   try {
     const user = await User.findById(userId).select("-password").lean();
     if (!user) return { status: 404, json: { error: "User not found" } };
-    return { status: 200, json: { success: true, user } };
+    const entitlements = getEntitlements(user);
+    return {
+      status: 200,
+      json: {
+        success: true,
+        user: { ...user, entitlements },
+        entitlements,
+      },
+    };
   } catch (error) {
     console.error("Error fetching user data:", error);
     return { status: 500, json: { error: "Internal server error" } };

@@ -1,8 +1,25 @@
 const bcrypt = require("bcryptjs");
 const User = require("../../../models/user");
+const {
+  normalizeSubscriptionTier,
+  applyTierSideEffects,
+  getEntitlements,
+} = require("./subscription.helper");
 
 async function register(body) {
-  const { name, password, username, email, mobileNumber } = body;
+  const {
+    name,
+    password,
+    username,
+    email,
+    mobileNumber,
+    subscription,
+    expiryDate,
+    expiryPeriod,
+    allowedGames,
+    role,
+    accountStatus,
+  } = body;
 
   console.log("Register request:", body);
 
@@ -43,8 +60,16 @@ async function register(body) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const expiry = new Date();
-    expiry.setMonth(expiry.getMonth() + 1);
+    const isAdminCreated = Boolean(subscription || expiryDate);
+    const expiry = expiryDate
+      ? new Date(expiryDate)
+      : (() => {
+          const d = new Date();
+          d.setMonth(d.getMonth() + 1);
+          return d;
+        })();
+
+    const tier = normalizeSubscriptionTier(subscription || "Premium");
 
     const newUser = new User({
       name,
@@ -52,14 +77,21 @@ async function register(body) {
       username,
       email,
       mobileNumber,
-      subscription: "Games",
-      accountStatus: "Hold",
-      role: "user",
+      subscription: tier,
+      accountStatus: accountStatus || (isAdminCreated ? "Active" : "Hold"),
+      role: role || "user",
       expiry,
-      expiryPeriod: "1 Month",
+      expiryPeriod: expiryPeriod || "1 Month",
     });
 
+    if (Array.isArray(allowedGames) && allowedGames.length > 0) {
+      newUser.allowedGames = allowedGames.filter(Boolean).slice(0, 2);
+    }
+
+    applyTierSideEffects(newUser, newUser.subscription, { previousTier: null });
     await newUser.save();
+
+    const entitlements = getEntitlements(newUser);
 
     return {
       status: 201,
@@ -75,7 +107,10 @@ async function register(body) {
           email: newUser.email,
           mobileNumber: newUser.mobileNumber,
           accountStatus: newUser.accountStatus,
+          subscription: newUser.subscription,
+          entitlements,
         },
+        entitlements,
       },
     };
   } catch (err) {

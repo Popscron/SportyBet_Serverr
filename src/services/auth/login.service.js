@@ -401,6 +401,7 @@ async function login(req, res) {
       message: "Login successful",
       token,
       isDefaultPassword: user.isDefaultPassword || false,
+      entitlements: subInfo.entitlements,
       user: {
         _id: user._id,
         name: user.name,
@@ -408,7 +409,11 @@ async function login(req, res) {
         username: user.username,
         mobileNumber: user.mobileNumber,
         role: user.role,
+        subscription: user.subscription,
+        expiry: user.expiry,
+        allowedGames: user.allowedGames,
         isDefaultPassword: user.isDefaultPassword || false,
+        entitlements: subInfo.entitlements,
       },
     });
   } catch (err) {
