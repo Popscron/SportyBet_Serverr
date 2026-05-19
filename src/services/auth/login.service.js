@@ -378,22 +378,20 @@ async function login(req, res) {
     });
 
     const subInfo = getSubscriptionInfo(user);
-    const isPremium = subInfo.isPremium;
+    const maxDevices = subInfo.maxDevices ?? 1;
+    const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
 
-    if (isPremium) {
-      const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
-
-      if (activeDevicesBeforeLogin === 0) {
-        await User.findByIdAndUpdate(user._id, { token });
-        console.log(`[Login] Token updated for Premium user (first device)`);
-      } else {
-        console.log(
-          `[Login] Token NOT updated for Premium user (already has ${activeDevicesBeforeLogin} active device(s))`
-        );
-      }
-    } else {
+    // Single-device tiers must persist the new JWT or the next API call returns 401.
+    // Multi-device tiers keep the first token in DB; authMiddleware skips token match when maxDevices > 1.
+    if (maxDevices <= 1 || activeDevicesBeforeLogin === 0) {
       await User.findByIdAndUpdate(user._id, { token });
-      console.log(`[Login] Token updated for Games user`);
+      console.log(
+        `[Login] Token updated (maxDevices=${maxDevices}, activeBefore=${activeDevicesBeforeLogin})`
+      );
+    } else {
+      console.log(
+        `[Login] Token NOT updated — multi-device session (activeBefore=${activeDevicesBeforeLogin}, max=${maxDevices})`
+      );
     }
 
     res.status(200).json({

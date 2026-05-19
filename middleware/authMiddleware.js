@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const Device = require("../models/Device");
 const { jwtSecret } = require("../src/config/auth.config");
+const { getSubscriptionInfo } = require("../src/services/auth/subscription.helper");
 
 const authMiddleware = async (req, res, next) => {
   const token = req.header("Authorization")?.replace("Bearer ", "");
@@ -15,10 +16,10 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
-    // Check if user is premium and has active subscription
-    const isPremium =
-      (user.subscription === "Premium" || user.subscription === "Premium Plus") &&
-      (!user.expiry || new Date(user.expiry) > new Date());
+    // Use entitlements (handles legacy tiers like "Games", "Optimum", etc.)
+    const subInfo = getSubscriptionInfo(user);
+    const maxDevices = subInfo.maxDevices ?? 1;
+    const allowMultipleSessions = maxDevices > 1;
     
     // ============================================================================
     // OLD BEHAVIOR (Currently Active):
@@ -41,29 +42,21 @@ const authMiddleware = async (req, res, next) => {
     // - Admin force logout: If token is null and no active devices, reject (admin cleared everything)
     
     if (!user.token) {
-      // Check if Premium user has active devices (multi-device support)
-      if (isPremium) {
+      if (allowMultipleSessions) {
         const activeDevices = await Device.find({
           userId: user._id,
           isActive: true,
         }).lean();
-        
-        // If Premium user has active devices, allow the request (multi-device support)
-        if (activeDevices.length > 0) {
-          // Premium user with active devices - token can be null, allow request
-        } else {
-          // Premium user with no active devices - token is null, reject (all devices logged out)
+        if (activeDevices.length === 0) {
           return res.status(401).json({ error: "Session expired. Please log in again." });
         }
       } else {
-        // Basic user with null token - reject (single device enforcement)
         return res.status(401).json({ error: "Session expired. Please log in again." });
       }
     }
     
-    // For premium users, allow multiple tokens (don't check if token matches user.token)
-    // For basic users, check token to ensure only one device is logged in (OLD BEHAVIOR)
-    if (!isPremium && user.token !== token) {
+    // Multi-device tiers: JWT is enough. Single-device: token must match DB (latest login wins).
+    if (!allowMultipleSessions && user.token && user.token !== token) {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
