@@ -7,6 +7,7 @@ const DeviceRequest = require("../../../models/DeviceRequest");
 const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
 const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const { jwtSecret } = require("../../config/auth.config");
+const { isSuperAdminEmail } = require("../../../utils/superAdmin");
 
 /**
  * POST /api/login — device limits, JWT, token persistence (Games vs Premium).
@@ -413,6 +414,7 @@ async function login(req, res) {
         subscription,
         expiry: user.expiry,
         allowedGames: subscription === "Premium Plus" ? user.allowedGames : undefined,
+        isSuperAdmin: isSuperAdminEmail(user.email),
         isDefaultPassword: user.isDefaultPassword || false,
         entitlements,
       },
