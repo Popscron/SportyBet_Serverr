@@ -1,4 +1,4 @@
-const { mongoose, connectMongoDBLazy } = require("../config/database");
+const { mongoose, connectMongoDBLazy, isConnected, getLastConnectionError } = require("../config/database");
 
 /**
  * Health, favicon, root metadata — safe for serverless + traditional server.
@@ -47,10 +47,14 @@ function registerWellKnownRoutes(app, { serverless = false } = {}) {
         success: true,
         message: "Server is healthy",
         timestamp: new Date().toISOString(),
-        mongodb:
-          mongoose.connection.readyState === 1 ? "connected" : "disconnected",
+        mongodb: isConnected() ? "connected" : "disconnected",
+        dbError: getLastConnectionError(),
         env: {
-          hasMongoUrl: !!process.env.MONGO_URL,
+          hasMongoUrl: !!(
+            process.env.MONGO_URL ||
+            process.env.MONGODB_URI ||
+            process.env.MONGODB_URL
+          ),
           nodeEnv: process.env.NODE_ENV,
         },
       });
