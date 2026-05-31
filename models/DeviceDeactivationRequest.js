@@ -6,7 +6,6 @@ const deviceDeactivationRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     deviceId: {
       type: String,
@@ -21,7 +20,6 @@ const deviceDeactivationRequestSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
-      index: true,
     },
     requestedAt: {
       type: Date,

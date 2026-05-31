@@ -8,6 +8,7 @@ const notificationsService = require("../../services/auth/notifications.service"
 const grandAuditService = require("../../services/auth/grandAudit.service");
 const deactivationService = require("../../services/auth/deactivation.service");
 const passwordService = require("../../services/auth/password.service");
+const { listTiersForAdmin } = require("../../services/auth/subscription.helper");
 
 function send(res, result) {
   res.status(result.status).json(result.json);
@@ -35,6 +36,10 @@ exports.verifyOtp = async (req, res) => {
 exports.register = async (req, res) => {
   const result = await registerService.register(req.body);
   send(res, result);
+};
+
+exports.getSubscriptionTiers = async (req, res) => {
+  res.status(200).json({ success: true, tiers: listTiersForAdmin() });
 };
 
 exports.getProfile = async (req, res) => {

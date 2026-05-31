@@ -6,7 +6,6 @@ const deviceRequestSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-      index: true,
     },
     deviceInfo: {
       deviceId: { type: String, required: true },
@@ -24,7 +23,6 @@ const deviceRequestSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
-      index: true,
     },
     requestedAt: {
       type: Date,

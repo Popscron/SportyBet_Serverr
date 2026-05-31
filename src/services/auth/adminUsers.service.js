@@ -167,9 +167,15 @@ async function activeUserAccount(id, body) {
   }
 }
 
+const {
+  applyTierSideEffects,
+  normalizeSubscriptionTier,
+  getEntitlements,
+} = require("./subscription.helper");
+
 async function updateUserFields(body) {
   try {
-    const { userId, username, subscription, expiry } = body;
+    const { userId, username, subscription, expiry, allowedGames } = body;
 
     if (!userId) {
       return {
@@ -186,11 +192,26 @@ async function updateUserFields(body) {
       };
     }
 
+    const previousTier = user.subscription;
     const updateData = {};
     if (username !== undefined) updateData.username = username;
-    if (subscription !== undefined) updateData.subscription = subscription;
     if (expiry !== undefined) {
       updateData.expiry = expiry ? new Date(expiry) : null;
+    }
+    if (allowedGames !== undefined) {
+      updateData.allowedGames = Array.isArray(allowedGames)
+        ? allowedGames.filter(Boolean).slice(0, 2)
+        : undefined;
+    }
+    if (subscription !== undefined) {
+      const normalized = normalizeSubscriptionTier(subscription, {
+        allowedGames: updateData.allowedGames ?? user.allowedGames,
+      });
+      updateData.subscription = normalized;
+      const { TIER_DEFINITIONS } = require("../../constants/subscriptionTiers");
+      if (!TIER_DEFINITIONS[normalized]?.allowCustomGames) {
+        updateData.allowedGames = undefined;
+      }
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -200,14 +221,32 @@ async function updateUserFields(body) {
       };
     }
 
-    await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-      runValidators: false,
-    });
+    Object.assign(user, updateData);
+    if (subscription !== undefined) {
+      applyTierSideEffects(user, user.subscription, { previousTier });
+    }
+    await user.save();
+    if (
+      subscription !== undefined &&
+      updateData.allowedGames === undefined &&
+      !require("../../constants/subscriptionTiers").TIER_DEFINITIONS[
+        user.subscription
+      ]?.allowCustomGames
+    ) {
+      await User.updateOne({ _id: user._id }, { $unset: { allowedGames: 1 } });
+      user.allowedGames = undefined;
+    }
+
+    const entitlements = getEntitlements(user);
 
     return {
       status: 200,
-      json: { success: true, message: "User fields updated successfully" },
+      json: {
+        success: true,
+        message: "User fields updated successfully",
+        entitlements,
+        smsPoints: user.smsPoints,
+      },
     };
   } catch (error) {
     console.error("Error updating user fields:", error);

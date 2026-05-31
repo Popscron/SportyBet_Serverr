@@ -58,6 +58,24 @@ async function listAllBets() {
   }
 }
 
+/** Public: latest N bets (no auth). Used by MiniGen select-bets. */
+async function listRecentPublicBets(limit = 5) {
+  try {
+    const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
+    const bets = await Bet.find()
+      .sort({ timestamp: -1 })
+      .limit(safeLimit)
+      .lean();
+    return { status: 200, json: { bets, count: bets.length } };
+  } catch (error) {
+    console.error("Error fetching recent public bets:", error.message);
+    return {
+      status: 500,
+      json: { error: "Internal server error", details: error.message },
+    };
+  }
+}
+
 async function listBetsByUser(userId) {
   try {
     const bets = await Bet.find({ userId }).lean();
@@ -417,6 +435,7 @@ async function deleteAllBetsForUser(userId) {
 
 module.exports = {
   listAllBets,
+  listRecentPublicBets,
   listBetsByUser,
   getByBookingCode,
   createBet,

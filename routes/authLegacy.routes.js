@@ -11,6 +11,7 @@ const router = express.Router();
 router.post("/send-otp", c.sendOtp);
 router.post("/verify-otp", c.verifyOtp);
 router.post("/register", c.register);
+router.get("/subscription/tiers", c.getSubscriptionTiers);
 
 router.get("/user/profile", authMiddleware, c.getProfile);
 router.get("/user/profile-stats", authMiddleware, c.getProfileStats);

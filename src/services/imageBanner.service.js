@@ -54,6 +54,20 @@ function entryUrl(entry) {
   return null;
 }
 
+async function getHomeBannerDoc() {
+  // Primary path: fixed singleton key.
+  let doc = await HomeBanner.findOne({ kind: "home" });
+  if (doc) return doc;
+
+  // Legacy fallback: if old docs exist without `kind`, adopt latest one.
+  const legacy = await HomeBanner.findOne().sort({ updatedAt: -1, _id: -1 });
+  if (!legacy) return null;
+  legacy.kind = "home";
+  legacy.markModified("kind");
+  await legacy.save();
+  return legacy;
+}
+
 /** API + app still expect `data.images` as `{ url, title }[]`. */
 function bannerDocToClientData(doc) {
   if (!doc) {
@@ -134,7 +148,7 @@ async function uploadImages(files) {
       title: "",
     }));
 
-    let doc = await HomeBanner.findOne();
+    let doc = await getHomeBannerDoc();
 
     if (doc) {
       deleteLocalFiles(doc.slides);
@@ -150,7 +164,7 @@ async function uploadImages(files) {
       };
     }
 
-    doc = new HomeBanner({ slides: slides.slice(0, MAX_HOME_BANNERS) });
+    doc = new HomeBanner({ kind: "home", slides: slides.slice(0, MAX_HOME_BANNERS) });
     await doc.save();
     return {
       status: 201,
@@ -214,10 +228,10 @@ async function uploadSingleImage(file, body) {
 
     const slide = { url: imageUrl, title };
 
-    let doc = await HomeBanner.findOne();
+    let doc = await getHomeBannerDoc();
 
     if (!doc) {
-      doc = new HomeBanner({ slides: [slide] });
+      doc = new HomeBanner({ kind: "home", slides: [slide] });
       await doc.save();
       return {
         status: 201,
@@ -302,7 +316,7 @@ async function uploadSingleImage(file, body) {
 
 async function getImages() {
   try {
-    const doc = await HomeBanner.findOne();
+    const doc = await getHomeBannerDoc();
 
     if (!doc) {
       return {

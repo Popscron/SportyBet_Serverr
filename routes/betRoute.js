@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const betController = require("../src/controllers/bet.controller");
 
+router.get("/public/recent-bets", betController.listRecentPublicBets);
+
 router.get("/bets", betController.listAllBets);
 
 router.get("/bets/booking/:bookingCode", betController.getByBookingCode);

@@ -2,14 +2,30 @@ const mongoose = require("mongoose");
 const User = require("../../../models/user");
 const Balance = require("../../../models/UserBalance");
 const UserProfileStats = require("../../../models/UserProfileStats");
-const { getSubscriptionInfo } = require("./subscription.helper");
+const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
+const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const Device = require("../../../models/Device");
+const { isSuperAdminEmail } = require("../../../utils/superAdmin");
 
 async function getProfile(userId) {
   try {
     const user = await User.findById(userId).select("-password").lean();
     if (!user) return { status: 404, json: { error: "User not found" } };
-    return { status: 200, json: { success: true, user } };
+    const subscription = normalizeSubscriptionTier(user.subscription, user);
+    const entitlements = getEntitlements({ ...user, subscription });
+    return {
+      status: 200,
+      json: {
+        success: true,
+        user: {
+          ...user,
+          subscription,
+          entitlements,
+          isSuperAdmin: isSuperAdminEmail(user.email),
+        },
+        entitlements,
+      },
+    };
   } catch (error) {
     console.error("Error fetching user data:", error);
     return { status: 500, json: { error: "Internal server error" } };
@@ -23,6 +39,7 @@ async function getProfileStats(userId) {
       stats = await UserProfileStats.create({
         user: userId,
         giftsCount: 0,
+        luckyWheelCount: 0,
         badgeCount: 1,
       });
     }
@@ -30,8 +47,9 @@ async function getProfileStats(userId) {
       status: 200,
       json: {
         success: true,
-        giftsCount: stats.giftsCount,
-        badgeCount: stats.badgeCount,
+        giftsCount: stats.giftsCount ?? 0,
+        luckyWheelCount: stats.luckyWheelCount ?? 0,
+        badgeCount: stats.badgeCount ?? 1,
       },
     };
   } catch (error) {
@@ -42,26 +60,31 @@ async function getProfileStats(userId) {
 
 async function updateProfileStats(userId, body) {
   try {
-    const { giftsCount, badgeCount } = body;
+    const { giftsCount, luckyWheelCount, badgeCount } = body;
     let stats = await UserProfileStats.findOne({ user: userId });
     if (!stats) {
       stats = await UserProfileStats.create({
         user: userId,
         giftsCount: 0,
+        luckyWheelCount: 0,
         badgeCount: 1,
       });
     }
-    if (typeof giftsCount === "number" && giftsCount >= 0)
-      stats.giftsCount = giftsCount;
-    if (typeof badgeCount === "number" && badgeCount >= 0)
-      stats.badgeCount = badgeCount;
+    // Accept both JSON numbers and numeric strings to avoid silent skips.
+    const g = Number(giftsCount);
+    const lw = Number(luckyWheelCount);
+    const b = Number(badgeCount);
+    if (Number.isFinite(g) && g >= 0) stats.giftsCount = g;
+    if (Number.isFinite(lw) && lw >= 0) stats.luckyWheelCount = lw;
+    if (Number.isFinite(b) && b >= 0) stats.badgeCount = b;
     await stats.save();
     return {
       status: 200,
       json: {
         success: true,
-        giftsCount: stats.giftsCount,
-        badgeCount: stats.badgeCount,
+        giftsCount: stats.giftsCount ?? 0,
+        luckyWheelCount: stats.luckyWheelCount ?? 0,
+        badgeCount: stats.badgeCount ?? 1,
       },
     };
   } catch (error) {

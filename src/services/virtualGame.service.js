@@ -1,6 +1,8 @@
 const VirtualGameBet = require("../../models/VirtualGameBet");
-const Deposit = require("../../models/deposite");
+const Deposit = require("../../models/Deposit");
 const User = require("../../models/user");
+const { GAME_IDS } = require("../constants/subscriptionTiers");
+const { assertGameAccess } = require("./auth/subscription.helper");
 
 function generateBookingCode25() {
   const lower = "abcdefghijklmnopqrstuvwxyz";
@@ -36,12 +38,6 @@ function isValidBookingCode25(code) {
   return true;
 }
 
-function isPremiumPlusActive(user) {
-  if (!user) return false;
-  const isActive = !user.expiry || new Date(user.expiry) > new Date();
-  return isActive && user.subscription === "Premium Plus";
-}
-
 async function checkPremiumPlusAccess(userId) {
   if (!userId) {
     return {
@@ -51,7 +47,9 @@ async function checkPremiumPlusAccess(userId) {
       },
     };
   }
-  const user = await User.findById(userId).select("subscription expiry role");
+  const user = await User.findById(userId).select(
+    "subscription expiry role allowedGames smsPoints"
+  );
   if (!user) {
     return {
       error: {
@@ -60,18 +58,9 @@ async function checkPremiumPlusAccess(userId) {
       },
     };
   }
-  if (user.role === "admin") return { user };
-  if (!isPremiumPlusActive(user)) {
-    return {
-      error: {
-        status: 403,
-        json: {
-          success: false,
-          error: "Premium Plus subscription required",
-          subscriptionType: user.subscription || "Basic",
-        },
-      },
-    };
+  const access = assertGameAccess(user, GAME_IDS.INSTANT_FOOTBALL);
+  if (!access.ok) {
+    return { error: { status: access.status, json: access.json } };
   }
   return { user };
 }
@@ -322,7 +311,7 @@ async function updateBet(ticketIdParam, body) {
       try {
         const deposit = await Deposit.findOne({ userId: bet.userId });
         if (deposit) {
-          deposit.amount += bet.totalReturn;
+          deposit.amount = Number(deposit.amount || 0) + Number(bet.totalReturn || 0);
           await deposit.save();
         }
       } catch (balanceError) {

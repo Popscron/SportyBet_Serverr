@@ -5,13 +5,11 @@ const VirtualGameBetSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    index: true,
   },
   ticketId: {
     type: String,
     required: true,
     unique: true,
-    index: true,
   },
   bookingCode: {
     type: String,
@@ -44,7 +42,6 @@ const VirtualGameBetSchema = new mongoose.Schema({
     type: String,
     enum: ["Pending", "Won", "Lost"],
     default: "Pending",
-    index: true,
   },
   matches: [{
     home: String,
@@ -90,7 +87,6 @@ const VirtualGameBetSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true,
   },
   updatedAt: {
     type: Date,
@@ -98,10 +94,9 @@ const VirtualGameBetSchema = new mongoose.Schema({
   },
 });
 
-// Create indexes for faster queries
+// Compound indexes (avoid duplicate single-field indexes on userId/ticketId)
 VirtualGameBetSchema.index({ userId: 1, createdAt: -1 });
 VirtualGameBetSchema.index({ userId: 1, status: 1 });
-VirtualGameBetSchema.index({ ticketId: 1 });
 
 // Update the updatedAt field before saving
 VirtualGameBetSchema.pre('save', function(next) {

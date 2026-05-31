@@ -5,7 +5,6 @@ const SpinBottleBetSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
     required: true,
-    index: true,
   },
   roundId: {
     type: String,
@@ -47,7 +46,6 @@ const SpinBottleBetSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
-    index: true,
   },
 });
 

@@ -16,8 +16,12 @@ const userSchema = new mongoose.Schema(
 
     subscription: {
       type: String,
-      enum: ["Basic", "Games", "Premium", "Premium Plus"],
-      default: "Basic",
+      default: "Premium",
+    },
+    /** Premium Plus: pick exactly 2 games (spinBottle | instantFootball | heroCrash). */
+    allowedGames: {
+      type: [String],
+      default: undefined,
     },
     expiry: { type: Date },
     expiryPeriod: {

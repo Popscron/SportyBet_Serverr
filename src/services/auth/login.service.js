@@ -4,8 +4,10 @@ const User = require("../../../models/user");
 const UserDeactivation = require("../../../models/UserDeactivation");
 const Device = require("../../../models/Device");
 const DeviceRequest = require("../../../models/DeviceRequest");
-const { getSubscriptionInfo } = require("./subscription.helper");
+const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
+const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const { jwtSecret } = require("../../config/auth.config");
+const { isSuperAdminEmail } = require("../../../utils/superAdmin");
 
 /**
  * POST /api/login — device limits, JWT, token persistence (Games vs Premium).
@@ -377,23 +379,23 @@ async function login(req, res) {
       expiresIn: "7d",
     });
 
-    const subInfo = getSubscriptionInfo(user);
-    const isPremium = subInfo.isPremium;
+    const subscription = normalizeSubscriptionTier(user.subscription, user);
+    const subInfo = getSubscriptionInfo({ ...user, subscription });
+    const entitlements = getEntitlements({ ...user, subscription });
+    const maxDevices = subInfo.maxDevices ?? 1;
+    const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
 
-    if (isPremium) {
-      const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
-
-      if (activeDevicesBeforeLogin === 0) {
-        await User.findByIdAndUpdate(user._id, { token });
-        console.log(`[Login] Token updated for Premium user (first device)`);
-      } else {
-        console.log(
-          `[Login] Token NOT updated for Premium user (already has ${activeDevicesBeforeLogin} active device(s))`
-        );
-      }
-    } else {
+    // Single-device tiers must persist the new JWT or the next API call returns 401.
+    // Multi-device tiers keep the first token in DB; authMiddleware skips token match when maxDevices > 1.
+    if (maxDevices <= 1 || activeDevicesBeforeLogin === 0) {
       await User.findByIdAndUpdate(user._id, { token });
-      console.log(`[Login] Token updated for Games user`);
+      console.log(
+        `[Login] Token updated (maxDevices=${maxDevices}, activeBefore=${activeDevicesBeforeLogin})`
+      );
+    } else {
+      console.log(
+        `[Login] Token NOT updated — multi-device session (activeBefore=${activeDevicesBeforeLogin}, max=${maxDevices})`
+      );
     }
 
     res.status(200).json({
@@ -401,6 +403,7 @@ async function login(req, res) {
       message: "Login successful",
       token,
       isDefaultPassword: user.isDefaultPassword || false,
+      entitlements,
       user: {
         _id: user._id,
         name: user.name,
@@ -408,7 +411,12 @@ async function login(req, res) {
         username: user.username,
         mobileNumber: user.mobileNumber,
         role: user.role,
+        subscription,
+        expiry: user.expiry,
+        allowedGames: subscription === "Premium Plus" ? user.allowedGames : undefined,
+        isSuperAdmin: isSuperAdminEmail(user.email),
         isDefaultPassword: user.isDefaultPassword || false,
+        entitlements,
       },
     });
   } catch (err) {

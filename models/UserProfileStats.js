@@ -13,6 +13,11 @@ const userProfileStatsSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    luckyWheelCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     badgeCount: {
       type: Number,
       default: 1,

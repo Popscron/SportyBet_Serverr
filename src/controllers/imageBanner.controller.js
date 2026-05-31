@@ -7,7 +7,10 @@ exports.uploadImages = async (req, res) => {
 };
 
 exports.uploadSingleImage = async (req, res) => {
-  const result = await imageBannerService.uploadSingleImage(req.file, req.body);
+  // Merge multipart body + query fallback so append/title flags survive
+  // across different client/form-data implementations.
+  const payload = { ...(req.query || {}), ...(req.body || {}) };
+  const result = await imageBannerService.uploadSingleImage(req.file, payload);
   sendResult(res, result);
 };
 

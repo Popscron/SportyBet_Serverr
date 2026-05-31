@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const { jwtSecret } = require("../src/config/auth.config");
+const { isSuperAdminEmail } = require("../utils/superAdmin");
 
 /**
  * Admin auth: cookie `sportybetToken` or `Authorization: Bearer`.
@@ -46,7 +47,7 @@ async function adminAuth(req, res, next) {
         });
       }
 
-      if (user.role !== "admin") {
+      if (user.role !== "admin" && !isSuperAdminEmail(user.email)) {
         return res.status(403).json({
           success: false,
           message: "Access denied. Admin privileges required.",

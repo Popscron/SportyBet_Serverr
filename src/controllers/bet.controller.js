@@ -6,6 +6,11 @@ exports.listAllBets = async (req, res) => {
   sendResult(res, result);
 };
 
+exports.listRecentPublicBets = async (req, res) => {
+  const result = await betService.listRecentPublicBets(req.query.limit);
+  sendResult(res, result);
+};
+
 exports.listBetsByUser = async (req, res) => {
   const result = await betService.listBetsByUser(req.params.userId);
   sendResult(res, result);

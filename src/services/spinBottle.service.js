@@ -1,5 +1,8 @@
 const SpinBottle = require("../../models/SpinBottle");
 const SpinBottleBet = require("../../models/SpinBottleBet");
+const User = require("../../models/user");
+const { GAME_IDS } = require("../constants/subscriptionTiers");
+const { assertGameAccess } = require("./auth/subscription.helper");
 
 function generateRoundId() {
   return `SPIN-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -138,6 +141,20 @@ async function placeBet(body) {
             "Missing required fields: userId, roundId, betDirection, stake, result",
         },
       };
+    }
+
+    const user = await User.findById(userId).select(
+      "subscription expiry role allowedGames smsPoints"
+    );
+    if (!user) {
+      return {
+        status: 404,
+        json: { success: false, error: "User not found" },
+      };
+    }
+    const access = assertGameAccess(user, GAME_IDS.SPIN_BOTTLE);
+    if (!access.ok) {
+      return { status: access.status, json: access.json };
     }
 
     const status = betDirection === result ? "won" : "lost";
