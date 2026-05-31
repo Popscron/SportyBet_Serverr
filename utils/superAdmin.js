@@ -1,4 +1,5 @@
 function getSuperAdminEmails() {
+  // Emails listed in ADMIN_EMAILS env (comma-separated) on Vercel/host.
   return (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
