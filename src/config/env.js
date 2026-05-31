@@ -6,12 +6,7 @@ function getPort() {
 }
 
 function getMongoUrl() {
-  return (
-    process.env.MONGO_URL ||
-    process.env.MONGODB_URI ||
-    process.env.MONGODB_URL ||
-    "mongodb://127.0.0.1:27017/SportyBetDB"
-  );
+  return process.env.MONGO_URL || "mongodb://127.0.0.1:27017/SportyBetDB";
 }
 
 function isProduction() {

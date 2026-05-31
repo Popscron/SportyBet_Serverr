@@ -9,7 +9,7 @@ const { applyApiRateLimit } = require("./config/rateLimit");
 const { registerApiRoutes } = require("./http/registerRoutes");
 const pushRoutes = require("./http/pushRoutes");
 const { registerWellKnownRoutes } = require("./http/wellKnown");
-const { connectMongoDBLazy, mongoose, isConnected, getLastConnectionError } = require("./config/database");
+const { connectMongoDBLazy, mongoose } = require("./config/database");
 
 const ROOT = path.join(__dirname, "..");
 
@@ -65,24 +65,19 @@ function createApp(opts = {}) {
 
   if (serverless) {
     app.use(async (req, res, next) => {
-      const path = req.path || req.url || "";
-      if (path === "/health" || path === "/" || path === "/favicon.ico") {
+      if (req.path === "/health") {
         return next();
       }
-
-      if (!isConnected()) {
-        await connectMongoDBLazy();
+      if (mongoose.connection.readyState === 0) {
+        try {
+          await connectMongoDBLazy();
+        } catch (error) {
+          console.error(
+            "MongoDB connection error in middleware:",
+            error.message
+          );
+        }
       }
-
-      if (!isConnected() && path.startsWith("/api")) {
-        return res.status(503).json({
-          success: false,
-          message:
-            "Database unavailable. Verify MONGO_URL on Vercel and MongoDB Atlas Network Access (allow 0.0.0.0/0).",
-          dbError: getLastConnectionError(),
-        });
-      }
-
       return next();
     });
   }
