@@ -5,7 +5,6 @@ const UserProfileStats = require("../../../models/UserProfileStats");
 const { getSubscriptionInfo, getEntitlements } = require("./subscription.helper");
 const { normalizeSubscriptionTier } = require("../../constants/subscriptionTiers");
 const Device = require("../../../models/Device");
-const { isSuperAdminEmail } = require("../../../utils/superAdmin");
 
 async function getProfile(userId) {
   try {
@@ -17,12 +16,7 @@ async function getProfile(userId) {
       status: 200,
       json: {
         success: true,
-        user: {
-          ...user,
-          subscription,
-          entitlements,
-          isSuperAdmin: isSuperAdminEmail(user.email),
-        },
+        user: { ...user, subscription, entitlements },
         entitlements,
       },
     };
