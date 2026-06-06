@@ -2,12 +2,16 @@ const express = require("express");
 const router = express.Router();
 const adminAuth = require("../middleware/adminAuthMiddleware");
 const adminController = require("../src/controllers/admin.controller");
+const appUpdateController = require("../src/controllers/appUpdate.controller");
 
 router.get("/test", adminController.test);
 
 router.use(adminAuth);
 
 router.put("/next-update-date", adminController.updateNextUpdateDate);
+
+router.get("/app-update-config", appUpdateController.getAdminConfig);
+router.put("/app-update-config", appUpdateController.updateAdminConfig);
 
 router.get("/device-requests", adminController.getDeviceRequests);
 router.get("/device-requests/:id/devices", adminController.getDeviceRequestActiveDevices);
