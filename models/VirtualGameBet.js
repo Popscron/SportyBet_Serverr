@@ -55,6 +55,14 @@ const VirtualGameBetSchema = new mongoose.Schema({
     won: { type: Boolean, default: null },
     status: { type: String, enum: ["Won", "Lost", ""], default: "" },
     outcome: { type: String, default: "" },
+    scoreA: { type: Number, default: null },
+    scoreB: { type: Number, default: null },
+    halfTimeScoreA: { type: Number, default: null },
+    halfTimeScoreB: { type: Number, default: null },
+    ft: { type: String, default: "" },
+    ht: { type: String, default: "" },
+    htSeq: { type: String, default: "" },
+    ftSeq: { type: String, default: "" },
   }],
   // Game result data
   scoreA: {

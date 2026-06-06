@@ -284,6 +284,32 @@ async function updateBet(ticketIdParam, body) {
     if (Array.isArray(matches) && matches.length > 0) {
       bet.matches = matches.map((m, i) => {
         const existing = bet.matches[i] || {};
+        const scoreA =
+          m.scoreA !== undefined ? m.scoreA : existing.scoreA;
+        const scoreB =
+          m.scoreB !== undefined ? m.scoreB : existing.scoreB;
+        const halfTimeScoreA =
+          m.halfTimeScoreA !== undefined
+            ? m.halfTimeScoreA
+            : existing.halfTimeScoreA;
+        const halfTimeScoreB =
+          m.halfTimeScoreB !== undefined
+            ? m.halfTimeScoreB
+            : existing.halfTimeScoreB;
+        const ft =
+          m.ft !== undefined
+            ? m.ft
+            : existing.ft ||
+              (scoreA != null && scoreB != null
+                ? `${scoreA} - ${scoreB}`
+                : "");
+        const ht =
+          m.ht !== undefined
+            ? m.ht
+            : existing.ht ||
+              (halfTimeScoreA != null && halfTimeScoreB != null
+                ? `${halfTimeScoreA}-${halfTimeScoreB}`
+                : "");
         return {
           home: m.home !== undefined ? m.home : existing.home,
           away: m.away !== undefined ? m.away : existing.away,
@@ -300,6 +326,24 @@ async function updateBet(ticketIdParam, body) {
               x && String(x).toLowerCase() !== "lost" ? String(x) : "";
             return safe(v) || safe(existing.outcome) || existing.pick || "";
           })(),
+          scoreA,
+          scoreB,
+          halfTimeScoreA,
+          halfTimeScoreB,
+          ft,
+          ht,
+          htSeq:
+            m.htSeq !== undefined
+              ? m.htSeq
+              : m.htSequence !== undefined
+                ? m.htSequence
+                : existing.htSeq || existing.htSequence || "",
+          ftSeq:
+            m.ftSeq !== undefined
+              ? m.ftSeq
+              : m.ftSequence !== undefined
+                ? m.ftSequence
+                : existing.ftSeq || existing.ftSequence || "",
         };
       });
     }
@@ -393,7 +437,15 @@ async function listBetsByUserAndStatus(userId, status) {
     const access = await checkPremiumPlusAccess(userId);
     if (access.error) return access.error;
 
-    const bets = await VirtualGameBet.find({ userId, status })
+    const statusKey = String(status || "").trim();
+    let statusFilter = statusKey;
+    if (statusKey === "Settled") {
+      statusFilter = { $in: ["Won", "Lost"] };
+    } else if (statusKey === "Unsettled") {
+      statusFilter = "Pending";
+    }
+
+    const bets = await VirtualGameBet.find({ userId, status: statusFilter })
       .sort({ createdAt: -1 })
       .exec();
 
