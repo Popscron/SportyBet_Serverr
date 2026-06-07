@@ -81,6 +81,15 @@ const VirtualGameBetSchema = new mongoose.Schema({
     type: Number,
     default: null,
   },
+  /** Root HT/FT strings (ticket-level display; first leg fallback). */
+  ht: {
+    type: String,
+    default: "",
+  },
+  ft: {
+    type: String,
+    default: "",
+  },
   matchHome: String,
   matchAway: String,
   betPick: String, // Home, Draw, Away
