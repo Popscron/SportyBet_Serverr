@@ -9,11 +9,28 @@ const GAME_IDS = {
   HERO_CRASH: "heroCrash",
 };
 
+const PERMISSION_IDS = {
+  OPEN_BETS: "openBets",
+};
+
 const ALL_GAMES = [
   GAME_IDS.SPIN_BOTTLE,
   GAME_IDS.INSTANT_FOOTBALL,
   GAME_IDS.HERO_CRASH,
 ];
+
+/** Split Premium Plus allowedGames into playable games vs optional permissions. */
+function parseAllowedGames(allowedGames) {
+  const picked = Array.isArray(allowedGames) ? allowedGames.filter(Boolean) : [];
+  const games = picked.filter((id) => ALL_GAMES.includes(id)).slice(0, 2);
+  const openBets = picked.includes(PERMISSION_IDS.OPEN_BETS);
+  return { games, openBets };
+}
+
+function normalizeAllowedGames(allowedGames) {
+  const { games, openBets } = parseAllowedGames(allowedGames);
+  return [...games, ...(openBets ? [PERMISSION_IDS.OPEN_BETS] : [])];
+}
 
 /** Canonical tier names (use these in admin UI). */
 const SUBSCRIPTION_TIERS = [
@@ -118,9 +135,12 @@ function normalizeSubscriptionTier(raw, user) {
 
 module.exports = {
   GAME_IDS,
+  PERMISSION_IDS,
   ALL_GAMES,
   SUBSCRIPTION_TIERS,
   TIER_DEFINITIONS,
   LEGACY_TIER_ALIASES,
   normalizeSubscriptionTier,
+  parseAllowedGames,
+  normalizeAllowedGames,
 };

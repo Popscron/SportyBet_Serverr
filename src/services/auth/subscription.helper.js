@@ -5,6 +5,7 @@ const {
   TIER_DEFINITIONS,
   SUBSCRIPTION_TIERS,
   normalizeSubscriptionTier,
+  parseAllowedGames,
 } = require("../../constants/subscriptionTiers");
 
 function isSubscriptionActive(user) {
@@ -48,23 +49,27 @@ function getEntitlements(user) {
   const isActive = isSubscriptionActive(user);
 
   let games = [...(def.games || [])];
+  let openBetsFromPick = false;
   if (def.allowCustomGames) {
-    const picked = Array.isArray(user.allowedGames)
-      ? user.allowedGames.filter(Boolean).slice(0, 2)
-      : [];
-    if (picked.length > 0) {
-      games = picked;
+    const parsed = parseAllowedGames(user.allowedGames);
+    if (parsed.games.length > 0) {
+      games = parsed.games;
     }
+    openBetsFromPick = parsed.openBets;
   }
 
   const inactive = !isActive;
+  let openBets = inactive ? false : Boolean(def.openBets);
+  if (!inactive && def.allowCustomGames && openBetsFromPick) {
+    openBets = true;
+  }
 
   return {
     tier,
     isActive,
     isAdmin: false,
     games: inactive ? [] : games,
-    openBets: inactive ? false : Boolean(def.openBets),
+    openBets,
     matchDetails: inactive ? false : Boolean(def.matchDetails),
     gamesTab: inactive ? false : Boolean(def.gamesTab),
     maxDevices: inactive ? 1 : def.maxDevices ?? 1,

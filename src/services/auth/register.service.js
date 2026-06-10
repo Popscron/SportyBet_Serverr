@@ -5,6 +5,7 @@ const {
   applyTierSideEffects,
   getEntitlements,
 } = require("./subscription.helper");
+const { normalizeAllowedGames } = require("../../constants/subscriptionTiers");
 
 async function register(body) {
   const {
@@ -85,7 +86,7 @@ async function register(body) {
     });
 
     if (Array.isArray(allowedGames) && allowedGames.length > 0) {
-      newUser.allowedGames = allowedGames.filter(Boolean).slice(0, 2);
+      newUser.allowedGames = normalizeAllowedGames(allowedGames);
     }
 
     applyTierSideEffects(newUser, newUser.subscription, { previousTier: null });

@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "Premium",
     },
-    /** Premium Plus: pick exactly 2 games (spinBottle | instantFootball | heroCrash). */
+    /** Premium Plus: up to 2 games (spinBottle | instantFootball | heroCrash) + optional openBets. */
     allowedGames: {
       type: [String],
       default: undefined,

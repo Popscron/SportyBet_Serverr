@@ -199,8 +199,9 @@ async function updateUserFields(body) {
       updateData.expiry = expiry ? new Date(expiry) : null;
     }
     if (allowedGames !== undefined) {
+      const { normalizeAllowedGames } = require("../../constants/subscriptionTiers");
       updateData.allowedGames = Array.isArray(allowedGames)
-        ? allowedGames.filter(Boolean).slice(0, 2)
+        ? normalizeAllowedGames(allowedGames)
         : undefined;
     }
     if (subscription !== undefined) {
