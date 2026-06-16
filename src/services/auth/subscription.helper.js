@@ -34,7 +34,7 @@ function getEntitlements(user) {
       tier: "admin",
       isActive: true,
       isAdmin: true,
-      games: ["spinBottle", "instantFootball", "heroCrash"],
+      games: ["spinBottle", "instantFootball", "heroCrash", "redBlack"],
       openBets: true,
       matchDetails: true,
       gamesTab: true,

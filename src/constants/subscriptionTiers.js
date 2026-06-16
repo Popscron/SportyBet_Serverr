@@ -7,6 +7,7 @@ const GAME_IDS = {
   SPIN_BOTTLE: "spinBottle",
   INSTANT_FOOTBALL: "instantFootball",
   HERO_CRASH: "heroCrash",
+  RED_BLACK: "redBlack",
 };
 
 const PERMISSION_IDS = {
@@ -17,6 +18,7 @@ const ALL_GAMES = [
   GAME_IDS.SPIN_BOTTLE,
   GAME_IDS.INSTANT_FOOTBALL,
   GAME_IDS.HERO_CRASH,
+  GAME_IDS.RED_BLACK,
 ];
 
 /** Split Premium Plus allowedGames into playable games vs optional permissions. */
