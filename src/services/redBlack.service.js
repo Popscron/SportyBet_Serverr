@@ -213,12 +213,16 @@ async function playHand(body) {
     const access = await checkUserAccess(userId);
     if (access.error) return access.error;
 
-    const round = await RedBlackRound.findOne({
+    let round = await RedBlackRound.findOne({
       userId,
       roundId,
       status: "active",
       expiresAt: { $gt: new Date() },
     });
+
+    if (!round) {
+      round = await getActiveRound(userId);
+    }
 
     if (!round) {
       return {
