@@ -1,5 +1,6 @@
 const RedBlackBet = require("../../models/RedBlackBet");
 const RedBlackRound = require("../../models/RedBlackRound");
+const RedBlackResult = require("../../models/RedBlackResult");
 const User = require("../../models/user");
 const { GAME_IDS } = require("../constants/subscriptionTiers");
 const { assertGameAccess } = require("./auth/subscription.helper");
@@ -8,6 +9,8 @@ const MIN_BET = 10;
 const MAX_BET = 2500000;
 const TURN_LIMIT = 5;
 const ROUND_TTL_MS = 30 * 60 * 1000;
+/** Reddict website + app shared signal TTL (must match website poll interval). */
+const DICT_RESULT_TTL_MS = 30 * 1000;
 
 const SUITS = ["♥", "♦", "♣", "♠"];
 const RED_SUITS = ["♥", "♦"];
@@ -196,7 +199,7 @@ async function getRound(query) {
 
 async function playHand(body) {
   try {
-    const { userId, roundId, pick: rawPick, stake, currencyType } = body;
+    const { userId, roundId, pick: rawPick, stake, currencyType, dictRoundId } = body;
     const pick = normalizePick(rawPick);
     const stakeNum = Number(stake);
 
@@ -261,7 +264,10 @@ async function playHand(body) {
       round.deck = buildShuffledDeck();
     }
 
-    const card = round.deck.shift();
+    const dictRow = await loadActiveDictResult(dictRoundId);
+    const card = dictRow?.color
+      ? pickCardForDictColor(round.deck, dictRow.color)
+      : round.deck.shift();
     const won = didPickWin(pick, card);
     const winAmount = won ? finalStake * 2 : 0;
     const status = won ? "won" : "lost";
@@ -300,6 +306,13 @@ async function playHand(body) {
     }
 
     await round.save();
+
+    if (dictRow?.roundId) {
+      await RedBlackResult.findOneAndUpdate(
+        { roundId: dictRow.roundId, isUsed: false },
+        { isUsed: true }
+      );
+    }
 
     return {
       status: 200,
@@ -388,6 +401,169 @@ async function endRound(body) {
   }
 }
 
+function generateDictRoundId() {
+  return `RBD-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+function generateDictCardColor() {
+  return Math.random() < 0.5 ? "RED" : "BLACK";
+}
+
+function buildSampleCard(color) {
+  if (color === "RED") {
+    return { rank: "A", suit: "♥", color: "RED" };
+  }
+  return { rank: "K", suit: "♠", color: "BLACK" };
+}
+
+function pickCardForDictColor(deck, forcedColor) {
+  if (!Array.isArray(deck) || deck.length === 0) {
+    return buildSampleCard(forcedColor);
+  }
+
+  if (!forcedColor || forcedColor === "GREEN") {
+    return deck.shift();
+  }
+
+  const matchIdx = deck.findIndex((c) => c?.color === forcedColor);
+  if (matchIdx >= 0) {
+    return deck.splice(matchIdx, 1)[0];
+  }
+
+  const fallback = deck.shift();
+  return {
+    ...buildSampleCard(forcedColor),
+    rank: fallback?.rank || buildSampleCard(forcedColor).rank,
+  };
+}
+
+async function loadActiveDictResult(dictRoundId) {
+  if (!dictRoundId) return null;
+  const now = new Date();
+  return RedBlackResult.findOne({
+    roundId: dictRoundId,
+    isUsed: false,
+    expiresAt: { $gt: now },
+  });
+}
+
+async function getCurrentResult() {
+  try {
+    const now = new Date();
+    let currentResult = await RedBlackResult.findOne({
+      expiresAt: { $gt: now },
+      isUsed: false,
+    }).sort({ createdAt: -1 });
+
+    if (!currentResult) {
+      let color = generateDictCardColor();
+
+      try {
+        const lastTwo = await RedBlackResult.find({})
+          .sort({ createdAt: -1 })
+          .limit(2)
+          .lean();
+
+        if (
+          Array.isArray(lastTwo) &&
+          lastTwo.length === 2 &&
+          lastTwo[0]?.color &&
+          lastTwo[0].color === lastTwo[1]?.color &&
+          lastTwo[0].color === color
+        ) {
+          color = color === "RED" ? "BLACK" : "RED";
+        }
+      } catch (e) {
+        console.warn("RedBlackResult streak cap failed:", e?.message || e);
+      }
+
+      const roundId = generateDictRoundId();
+      const expiresAt = new Date(now.getTime() + DICT_RESULT_TTL_MS);
+
+      currentResult = await RedBlackResult.create({
+        color,
+        card: buildSampleCard(color),
+        roundId,
+        expiresAt,
+        isUsed: false,
+      });
+    }
+
+    return {
+      status: 200,
+      json: {
+        success: true,
+        data: {
+          color: currentResult.color,
+          card: currentResult.card,
+          roundId: currentResult.roundId,
+          expiresAt: currentResult.expiresAt,
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching red-black result:", error);
+    return {
+      status: 500,
+      json: {
+        success: false,
+        error: "Failed to fetch red-black result",
+        message: error.message,
+      },
+    };
+  }
+}
+
+async function markResultUsed(body) {
+  try {
+    const { roundId } = body;
+
+    if (!roundId) {
+      return {
+        status: 400,
+        json: {
+          success: false,
+          error: "roundId is required",
+        },
+      };
+    }
+
+    const result = await RedBlackResult.findOneAndUpdate(
+      { roundId, isUsed: false },
+      { isUsed: true },
+      { new: true }
+    );
+
+    if (!result) {
+      return {
+        status: 404,
+        json: {
+          success: false,
+          error: "Result not found or already used",
+        },
+      };
+    }
+
+    return {
+      status: 200,
+      json: {
+        success: true,
+        message: "Result marked as used",
+      },
+    };
+  } catch (error) {
+    console.error("Error marking red-black result used:", error);
+    return {
+      status: 500,
+      json: {
+        success: false,
+        error: "Failed to mark result as used",
+        message: error.message,
+      },
+    };
+  }
+}
+
 async function betHistory(query) {
   try {
     const { userId, limit = 100 } = query;
@@ -435,6 +611,8 @@ module.exports = {
   playHand,
   endRound,
   betHistory,
+  getCurrentResult,
+  markResultUsed,
   MIN_BET,
   MAX_BET,
   TURN_LIMIT,

@@ -25,3 +25,13 @@ exports.betHistory = async (req, res) => {
   const result = await redBlackService.betHistory(req.query);
   sendResult(res, result);
 };
+
+exports.getCurrentResult = async (req, res) => {
+  const result = await redBlackService.getCurrentResult();
+  sendResult(res, result);
+};
+
+exports.markResultUsed = async (req, res) => {
+  const result = await redBlackService.markResultUsed(req.body);
+  sendResult(res, result);
+};
