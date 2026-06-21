@@ -47,7 +47,7 @@ function mountOptionsHandler(app) {
       );
       res.header(
         "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+        "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma"
       );
     }
     res.sendStatus(200);
@@ -72,6 +72,8 @@ function mountCors(app) {
         "X-Requested-With",
         "Accept",
         "Origin",
+        "Cache-Control",
+        "Pragma",
       ],
       exposedHeaders: ["Content-Type", "Authorization"],
       credentials: true,
