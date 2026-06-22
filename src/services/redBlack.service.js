@@ -265,9 +265,7 @@ async function playHand(body) {
     }
 
     const dictRow = await loadActiveDictResult(dictRoundId);
-    const card = dictRow?.color
-      ? pickCardForDictColor(round.deck, dictRow.color)
-      : round.deck.shift();
+    const card = resolveDictPlayCard(round.deck, dictRow);
     const won = didPickWin(pick, card);
     const winAmount = won ? finalStake * 2 : 0;
     const status = won ? "won" : "lost";
@@ -416,6 +414,44 @@ function buildSampleCard(color) {
   return { rank: "K", suit: "♠", color: "BLACK" };
 }
 
+/** Pick a concrete rank/suit for dict + app sync (same card on website and in-game). */
+function pickRandomCardForColor(color) {
+  const deck = buildShuffledDeck();
+  return pickCardForDictColor(deck, color);
+}
+
+function resolveDictPlayCard(deck, dictRow) {
+  if (!dictRow) {
+    return deck.shift();
+  }
+
+  const stored = dictRow.card;
+  if (stored?.color && (stored.rank || stored.suit)) {
+    const card = {
+      rank: stored.rank ?? null,
+      suit: stored.suit || "♥",
+      color: stored.color,
+    };
+    const idx = deck.findIndex(
+      (c) =>
+        c?.suit === card.suit &&
+        String(c?.rank ?? "") === String(card.rank ?? "") &&
+        c?.color === card.color
+    );
+    if (idx >= 0) {
+      deck.splice(idx, 1);
+      return card;
+    }
+    return card;
+  }
+
+  if (dictRow.color) {
+    return pickCardForDictColor(deck, dictRow.color);
+  }
+
+  return deck.shift();
+}
+
 function pickCardForDictColor(deck, forcedColor) {
   if (!Array.isArray(deck) || deck.length === 0) {
     return buildSampleCard(forcedColor);
@@ -482,7 +518,7 @@ async function getCurrentResult() {
 
       currentResult = await RedBlackResult.create({
         color,
-        card: buildSampleCard(color),
+        card: pickRandomCardForColor(color),
         roundId,
         expiresAt,
         isUsed: false,
