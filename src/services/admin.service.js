@@ -859,6 +859,68 @@ async function clearUserDevices(userId) {
   }
 }
 
+async function loadMinigenPoints(body) {
+  try {
+    const { userId, points } = body;
+
+    if (!userId) {
+      return {
+        status: 400,
+        json: {
+          success: false,
+          message: "User ID is required",
+        },
+      };
+    }
+
+    if (points === undefined || points === null || points < 0) {
+      return {
+        status: 400,
+        json: {
+          success: false,
+          message: "Valid points amount is required (must be >= 0)",
+        },
+      };
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return {
+        status: 404,
+        json: {
+          success: false,
+          message: "User not found",
+        },
+      };
+    }
+
+    user.minigenPoints = Math.round(((user.minigenPoints || 0) + Number(points)) * 10) / 10;
+    await user.save();
+
+    return {
+      status: 200,
+      json: {
+        success: true,
+        message: `Successfully loaded ${points} MiniGen points`,
+        data: {
+          minigenPoints: user.minigenPoints,
+          pointsAdded: Number(points),
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error loading MiniGen points:", error);
+    return {
+      status: 500,
+      json: {
+        success: false,
+        message: "Server error loading MiniGen points",
+        error: error.message,
+      },
+    };
+  }
+}
+
 module.exports = {
   updateNextUpdateDate,
   getDeviceRequests,
@@ -872,5 +934,6 @@ module.exports = {
   rejectDeviceDeactivationRequest,
   deactivateDeviceById,
   loadSmsPoints,
+  loadMinigenPoints,
   clearUserDevices,
 };

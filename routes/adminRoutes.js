@@ -34,6 +34,7 @@ router.put(
 router.put("/devices/:deviceId/deactivate", adminController.deactivateDevice);
 
 router.post("/load-sms-points", adminController.loadSmsPoints);
+router.post("/load-minigen-points", adminController.loadMinigenPoints);
 
 router.post("/users/:userId/clear-devices", adminController.clearUserDevices);
 

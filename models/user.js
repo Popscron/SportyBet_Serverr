@@ -86,6 +86,11 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    minigenPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     isDefaultPassword: {
       type: Boolean,
       default: false,

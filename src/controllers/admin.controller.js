@@ -89,6 +89,11 @@ exports.loadSmsPoints = async (req, res) => {
   sendResult(res, result);
 };
 
+exports.loadMinigenPoints = async (req, res) => {
+  const result = await adminService.loadMinigenPoints(req.body);
+  sendResult(res, result);
+};
+
 exports.clearUserDevices = async (req, res) => {
   const result = await adminService.clearUserDevices(req.params.userId);
   sendResult(res, result);

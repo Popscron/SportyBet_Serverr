@@ -343,19 +343,20 @@ async function finalizeLogin(user, deviceInfo, req, res) {
     token,
     isDefaultPassword: user.isDefaultPassword || false,
     entitlements,
-    user: {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      username: user.username,
-      mobileNumber: user.mobileNumber,
-      role: user.role,
-      subscription,
-      expiry: user.expiry,
-      allowedGames: subscription === "Premium Plus" ? user.allowedGames : undefined,
-      isDefaultPassword: user.isDefaultPassword || false,
-      entitlements,
-    },
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        username: user.username,
+        mobileNumber: user.mobileNumber,
+        role: user.role,
+        subscription,
+        expiry: user.expiry,
+        allowedGames: subscription === "Premium Plus" ? user.allowedGames : undefined,
+        isDefaultPassword: user.isDefaultPassword || false,
+        entitlements,
+        minigenPoints: Math.round((user.minigenPoints ?? 0) * 10) / 10,
+      },
   });
 }
 
