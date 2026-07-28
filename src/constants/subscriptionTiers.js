@@ -39,6 +39,7 @@ const SUBSCRIPTION_TIERS = [
   "Games Bottle Flip",
   "Games Instant Virtuals",
   "Games Sporty Hero",
+  "Games Red Black",
   "Premium",
   "Premium Pro",
   "Premium Plus",
@@ -58,6 +59,15 @@ const TIER_DEFINITIONS = {
   "Games Instant Virtuals": {
     label: "Games — Instant virtuals only",
     games: [GAME_IDS.INSTANT_FOOTBALL],
+    openBets: false,
+    matchDetails: false,
+    maxDevices: 1,
+    isPremium: false,
+    gamesTab: true,
+  },
+  "Games Red Black": {
+    label: "Games — Red & Black only",
+    games: [GAME_IDS.RED_BLACK],
     openBets: false,
     matchDetails: false,
     maxDevices: 1,
