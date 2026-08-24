@@ -13,6 +13,11 @@ const { jwtSecret } = require("../../config/auth.config");
  */
 async function finalizeLogin(user, deviceInfo, req, res) {
   let activeDevicesCountBeforeNewDevice = 0;
+  // Declared outside the try block so the JWT-issuance/token-persistence
+  // code below (which runs whether or not deviceInfo was provided) can see
+  // it too — see the "MiniGen isn't the customer-facing betting app" note
+  // where this actually gets set.
+  let isMinigenDevice = false;
 
   if (deviceInfo && typeof deviceInfo === "object" && deviceInfo !== null) {
     try {
@@ -43,7 +48,7 @@ async function finalizeLogin(user, deviceInfo, req, res) {
       // must never occupy (or be blocked by) one of the account's real
       // device-limit slots, or logging into MiniGen could lock the user
       // out of their own SportyBet app on another device.
-      const isMinigenDevice = deviceData.deviceType === "minigen";
+      isMinigenDevice = deviceData.deviceType === "minigen";
       const realDeviceFilter = { deviceType: { $ne: "minigen" } };
 
       let existingDevice = await Device.findOne({
@@ -325,9 +330,15 @@ async function finalizeLogin(user, deviceInfo, req, res) {
     }
   }
 
-  const token = jwt.sign({ id: user._id, email: user.email }, jwtSecret, {
-    expiresIn: "7d",
-  });
+  // MiniGen's JWT is marked so authMiddleware can recognize and exempt it
+  // from the single-device "token must match user.token" check below — a
+  // MiniGen session must never invalidate the real app's session, or get
+  // invalidated by it (see the isMinigenDevice notes above).
+  const token = jwt.sign(
+    { id: user._id, email: user.email, ...(isMinigenDevice ? { minigen: true } : {}) },
+    jwtSecret,
+    { expiresIn: "7d" }
+  );
 
   const subscription = normalizeSubscriptionTier(user.subscription, user);
   const subInfo = getSubscriptionInfo({ ...user, subscription });
@@ -335,7 +346,9 @@ async function finalizeLogin(user, deviceInfo, req, res) {
   const maxDevices = subInfo.maxDevices ?? 1;
   const activeDevicesBeforeLogin = activeDevicesCountBeforeNewDevice;
 
-  if (maxDevices <= 1 || activeDevicesBeforeLogin === 0) {
+  if (isMinigenDevice) {
+    console.log(`[Login] Token NOT updated — MiniGen session (does not affect the app's single-session token)`);
+  } else if (maxDevices <= 1 || activeDevicesBeforeLogin === 0) {
     await User.findByIdAndUpdate(user._id, { token });
     console.log(
       `[Login] Token updated (maxDevices=${maxDevices}, activeBefore=${activeDevicesBeforeLogin})`

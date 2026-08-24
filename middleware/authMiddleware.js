@@ -16,6 +16,12 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
+    // MiniGen tokens are never written to user.token (see login.service.js
+    // finalizeLogin) so they never invalidate — or get invalidated by — the
+    // real app's single-device session. The JWT's own signature/expiry is
+    // sufficient proof for these; skip the user.token equality check below.
+    const isMinigenToken = decoded.minigen === true;
+
     // Use entitlements (handles legacy tiers like "Games", "Optimum", etc.)
     const subInfo = getSubscriptionInfo(user);
     const maxDevices = subInfo.maxDevices ?? 1;
@@ -41,23 +47,25 @@ const authMiddleware = async (req, res, next) => {
     // - For Premium users: If token is null AND no active devices, reject (all devices logged out)
     // - Admin force logout: If token is null and no active devices, reject (admin cleared everything)
     
-    if (!user.token) {
-      if (allowMultipleSessions) {
-        const activeDevices = await Device.find({
-          userId: user._id,
-          isActive: true,
-        }).lean();
-        if (activeDevices.length === 0) {
+    if (!isMinigenToken) {
+      if (!user.token) {
+        if (allowMultipleSessions) {
+          const activeDevices = await Device.find({
+            userId: user._id,
+            isActive: true,
+          }).lean();
+          if (activeDevices.length === 0) {
+            return res.status(401).json({ error: "Session expired. Please log in again." });
+          }
+        } else {
           return res.status(401).json({ error: "Session expired. Please log in again." });
         }
-      } else {
+      }
+
+      // Multi-device tiers: JWT is enough. Single-device: token must match DB (latest login wins).
+      if (!allowMultipleSessions && user.token && user.token !== token) {
         return res.status(401).json({ error: "Session expired. Please log in again." });
       }
-    }
-    
-    // Multi-device tiers: JWT is enough. Single-device: token must match DB (latest login wins).
-    if (!allowMultipleSessions && user.token && user.token !== token) {
-      return res.status(401).json({ error: "Session expired. Please log in again." });
     }
 
     // CRITICAL: Validate device if deviceId is provided in headers
