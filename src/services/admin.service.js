@@ -4,6 +4,7 @@ const DeviceDeactivationRequest = require("../../models/DeviceDeactivationReques
 const Device = require("../../models/Device");
 const User = require("../../models/user");
 const NextUpdateDate = require("../../models/NextUpdateDate");
+const { sendExpoPush, isDeviceNotRegistered } = require("../../utils/expoPush");
 
 /**
  * Resolve an active device row for logout: exact deviceId, Mongo _id, or short/suffix match.
@@ -896,6 +897,36 @@ async function loadMinigenPoints(body) {
 
     user.minigenPoints = Math.round(((user.minigenPoints || 0) + Number(points)) * 10) / 10;
     await user.save();
+
+    const pointsAdded = Number(points);
+    if (pointsAdded > 0 && user.minigenPushToken) {
+      const formatted =
+        Number.isInteger(pointsAdded) || pointsAdded === Math.round(pointsAdded)
+          ? String(Math.round(pointsAdded))
+          : String(Math.round(pointsAdded * 10) / 10);
+      sendExpoPush({
+        to: user.minigenPushToken,
+        title: "MiniGen Points",
+        body: `Congratulations, you've been credited ${formatted} points. Open MiniGen to create your tickets 🎉`,
+        data: {
+          type: "minigen_points",
+          pointsAdded,
+          minigenPoints: user.minigenPoints,
+        },
+        channelId: "minigen-points",
+      })
+        .then(async (result) => {
+          if (isDeviceNotRegistered(result)) {
+            await User.updateOne(
+              { _id: user._id },
+              { $unset: { minigenPushToken: 1 } }
+            );
+          }
+        })
+        .catch((err) => {
+          console.error("MiniGen points push failed:", err?.message || err);
+        });
+    }
 
     return {
       status: 200,

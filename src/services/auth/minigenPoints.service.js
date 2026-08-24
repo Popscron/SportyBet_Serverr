@@ -79,8 +79,48 @@ async function deductMinigenPoints(req, res) {
   }
 }
 
+async function registerMinigenPushToken(req, res) {
+  try {
+    const userId = req.user?.id || req.user?._id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    const raw = req.body?.pushToken;
+    if (raw === null || raw === "") {
+      await User.findByIdAndUpdate(userId, { $unset: { minigenPushToken: 1 } });
+      return res.status(200).json({ success: true, cleared: true });
+    }
+
+    if (typeof raw !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "pushToken is required",
+      });
+    }
+
+    const pushToken = raw.trim();
+    const looksValid =
+      pushToken.startsWith("ExponentPushToken[") ||
+      pushToken.startsWith("ExpoPushToken[");
+    if (!looksValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid Expo push token",
+      });
+    }
+
+    await User.findByIdAndUpdate(userId, { minigenPushToken: pushToken });
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Register MiniGen push token error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+}
+
 module.exports = {
   GALLERY_SAVE_COST,
   getMinigenPoints,
   deductMinigenPoints,
+  registerMinigenPushToken,
 };
