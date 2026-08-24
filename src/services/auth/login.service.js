@@ -39,6 +39,13 @@ async function finalizeLogin(user, deviceInfo, req, res) {
         platform: deviceData.platform,
       });
 
+      // MiniGen isn't the customer-facing betting app — a MiniGen session
+      // must never occupy (or be blocked by) one of the account's real
+      // device-limit slots, or logging into MiniGen could lock the user
+      // out of their own SportyBet app on another device.
+      const isMinigenDevice = deviceData.deviceType === "minigen";
+      const realDeviceFilter = { deviceType: { $ne: "minigen" } };
+
       let existingDevice = await Device.findOne({
         userId: user._id,
         deviceId: deviceData.deviceId,
@@ -58,10 +65,11 @@ async function finalizeLogin(user, deviceInfo, req, res) {
           userId: user._id,
           isActive: true,
           _id: { $ne: existingDevice._id },
+          ...realDeviceFilter,
         });
         activeDevicesCountBeforeNewDevice = activeDevicesBeforeUpdate;
 
-        if (!existingDevice.isActive && activeDevicesBeforeUpdate >= maxDevices) {
+        if (!isMinigenDevice && !existingDevice.isActive && activeDevicesBeforeUpdate >= maxDevices) {
           console.log(
             `[Login] Cannot reactivate inactive device - limit reached. Active: ${activeDevicesBeforeUpdate}, Max: ${maxDevices}`
           );
@@ -183,13 +191,14 @@ async function finalizeLogin(user, deviceInfo, req, res) {
         const activeDevices = await Device.find({
           userId: user._id,
           isActive: true,
+          ...realDeviceFilter,
         });
 
         console.log(
           `[Login] Device limit check - Active devices: ${activeDevices.length}, Max: ${maxDevices}, isPremium: ${isPremium}`
         );
 
-        if (activeDevices.length >= maxDevices) {
+        if (!isMinigenDevice && activeDevices.length >= maxDevices) {
           console.log(
             `[Login] Device limit reached! Blocking new device creation. Active: ${activeDevices.length}, Max: ${maxDevices}`
           );

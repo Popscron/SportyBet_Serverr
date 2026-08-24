@@ -23,7 +23,9 @@ const deviceSchema = new mongoose.Schema(
     },
     deviceType: {
       type: String,
-      enum: ["mobile", "tablet", "desktop", "unknown"],
+      // "minigen" = a MiniGen ticket-generator session, not the customer
+      // betting app — excluded from the account's device-limit count.
+      enum: ["mobile", "tablet", "desktop", "minigen", "unknown"],
       default: "unknown",
     },
     platform: {

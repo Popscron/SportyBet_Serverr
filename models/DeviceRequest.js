@@ -12,7 +12,7 @@ const deviceRequestSchema = new mongoose.Schema(
       deviceName: { type: String, required: true },
       modelName: { type: String },
       modelId: { type: String },
-      deviceType: { type: String, enum: ["mobile", "tablet", "desktop", "unknown"], default: "unknown" },
+      deviceType: { type: String, enum: ["mobile", "tablet", "desktop", "minigen", "unknown"], default: "unknown" },
       platform: { type: String, required: true },
       osVersion: { type: String },
       appVersion: { type: String },
