@@ -899,33 +899,49 @@ async function loadMinigenPoints(body) {
     await user.save();
 
     const pointsAdded = Number(points);
-    if (pointsAdded > 0 && user.minigenPushToken) {
-      const formatted =
-        Number.isInteger(pointsAdded) || pointsAdded === Math.round(pointsAdded)
-          ? String(Math.round(pointsAdded))
-          : String(Math.round(pointsAdded * 10) / 10);
-      sendExpoPush({
-        to: user.minigenPushToken,
-        title: "MiniGen Points",
-        body: `Congratulations, you've been credited ${formatted} points. Open MiniGen to create your tickets 🎉`,
-        data: {
-          type: "minigen_points",
-          pointsAdded,
-          minigenPoints: user.minigenPoints,
-        },
-        channelId: "minigen-points",
-      })
-        .then(async (result) => {
-          if (isDeviceNotRegistered(result)) {
-            await User.updateOne(
-              { _id: user._id },
-              { $unset: { minigenPushToken: 1 } }
-            );
-          }
-        })
-        .catch((err) => {
-          console.error("MiniGen points push failed:", err?.message || err);
+    let pushSent = false;
+    let pushSkipReason = null;
+
+    if (pointsAdded <= 0) {
+      pushSkipReason = "no_points";
+    } else if (!user.minigenPushToken) {
+      pushSkipReason = "no_device_token";
+      console.warn(
+        `MiniGen points loaded for ${user.email || user._id} but no minigenPushToken is stored`
+      );
+    } else {
+      try {
+        const formatted =
+          Number.isInteger(pointsAdded) || pointsAdded === Math.round(pointsAdded)
+            ? String(Math.round(pointsAdded))
+            : String(Math.round(pointsAdded * 10) / 10);
+        const result = await sendExpoPush({
+          to: user.minigenPushToken,
+          title: "MiniGen Points",
+          body: `Congratulations, you've been credited ${formatted} points. Open MiniGen to create your tickets 🎉`,
+          data: {
+            type: "minigen_points",
+            pointsAdded,
+            minigenPoints: user.minigenPoints,
+          },
+          channelId: "minigen-points",
         });
+        if (isDeviceNotRegistered(result)) {
+          await User.updateOne(
+            { _id: user._id },
+            { $unset: { minigenPushToken: 1 } }
+          );
+          pushSkipReason = "device_not_registered";
+        } else if (result?.data?.status === "ok" || result?.data?.id) {
+          pushSent = true;
+        } else {
+          pushSkipReason = result?.data?.message || "expo_push_failed";
+          console.error("MiniGen points push not ok:", result);
+        }
+      } catch (err) {
+        pushSkipReason = err?.message || "expo_push_failed";
+        console.error("MiniGen points push failed:", pushSkipReason);
+      }
     }
 
     return {
@@ -936,6 +952,8 @@ async function loadMinigenPoints(body) {
         data: {
           minigenPoints: user.minigenPoints,
           pointsAdded: Number(points),
+          pushSent,
+          pushSkipReason,
         },
       },
     };
