@@ -84,10 +84,10 @@ const TIER_DEFINITIONS = {
     gamesTab: true,
   },
   Premium: {
-    label: "Premium — betting only (no games, no match details)",
+    label: "Premium — betting + match details (no games)",
     games: [],
     openBets: true,
-    matchDetails: false,
+    matchDetails: true,
     maxDevices: 999,
     isPremium: true,
     gamesTab: false,
