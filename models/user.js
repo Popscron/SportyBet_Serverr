@@ -91,6 +91,10 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    minigenPushToken: {
+      type: String,
+      default: null,
+    },
     isDefaultPassword: {
       type: Boolean,
       default: false,

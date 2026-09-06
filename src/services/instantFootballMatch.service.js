@@ -1,6 +1,27 @@
 const fs = require("fs");
 const path = require("path");
 const InstantFootballMatch = require("../../models/InstantFootballMatch");
+const InstantFootballTeam = require("../../models/InstantFootballTeam");
+
+// Record that this team code exists in this league so future reshuffles can
+// draw from the full historical roster, not just whatever matches are active
+// right now. Never overwrites an existing badge with a blank one.
+async function upsertTeam(league, code, badgeUrl) {
+  const cleanLeague = String(league || "England").trim();
+  const cleanCode = String(code || "").trim();
+  if (!cleanCode) return;
+  try {
+    const update = { league: cleanLeague, code: cleanCode };
+    if (badgeUrl) update.badgeUrl = badgeUrl;
+    await InstantFootballTeam.findOneAndUpdate(
+      { league: cleanLeague, code: cleanCode },
+      { $set: update },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+  } catch (err) {
+    console.warn("Failed to upsert instant football team roster entry:", err.message);
+  }
+}
 
 function deleteLocalUploadIfExists(url) {
   try {
@@ -33,9 +54,10 @@ function deleteLocalUploadIfExists(url) {
 
 async function listMatches() {
   try {
-    const matches = await InstantFootballMatch.find()
-      .sort({ order: 1, createdAt: 1 })
-      .lean();
+    const [matches, teams] = await Promise.all([
+      InstantFootballMatch.find().sort({ order: 1, createdAt: 1 }).lean(),
+      InstantFootballTeam.find().lean(),
+    ]);
     const formatted = matches.map((m, i) => ({
       id: String(m._id),
       home: m.home,
@@ -49,10 +71,20 @@ async function listMatches() {
       homeBadgeUrl: m.homeBadgeUrl || "",
       awayBadgeUrl: m.awayBadgeUrl || "",
     }));
-    console.log("instant-football/matches GET - returning matches:", formatted);
+
+    // Every team code ever added for each league (survives matches being
+    // edited/deleted) so the app can reshuffle from a bigger pool than just
+    // the currently active matches.
+    const teamsByLeague = {};
+    teams.forEach((t) => {
+      const league = t.league || "England";
+      if (!teamsByLeague[league]) teamsByLeague[league] = [];
+      teamsByLeague[league].push({ code: t.code, badgeUrl: t.badgeUrl || "" });
+    });
+
     return {
       status: 200,
-      json: { success: true, data: formatted },
+      json: { success: true, data: formatted, teamsByLeague },
     };
   } catch (error) {
     console.error("Error fetching instant football matches:", error);
@@ -105,6 +137,10 @@ async function createMatch(body, files) {
         (body.awayBadgeUrl ? String(body.awayBadgeUrl).trim() : ""),
     });
     await match.save();
+    await Promise.all([
+      upsertTeam(match.league, match.home, match.homeBadgeUrl),
+      upsertTeam(match.league, match.away, match.awayBadgeUrl),
+    ]);
     return {
       status: 201,
       json: {
@@ -155,6 +191,10 @@ async function updateMatch(id, body) {
     if (!match) {
       return { status: 404, json: { success: false, error: "Match not found" } };
     }
+    await Promise.all([
+      upsertTeam(match.league, match.home, match.homeBadgeUrl),
+      upsertTeam(match.league, match.away, match.awayBadgeUrl),
+    ]);
     return { status: 200, json: { success: true, data: match } };
   } catch (error) {
     console.error("Error updating instant football match:", error);

@@ -11,6 +11,7 @@ const legacyRouter = require("./authLegacy.routes");
 const {
   getMinigenPoints,
   deductMinigenPoints,
+  registerMinigenPushToken,
 } = require("../src/services/auth/minigenPoints.service");
 
 router.post("/login", login);
@@ -19,6 +20,7 @@ router.get("/auth/minigen/pending-code", authMiddleware, getPendingMinigenCode);
 router.post("/auth/minigen/verify-login", verifyMinigenLogin);
 router.get("/user/minigen-points", authMiddleware, getMinigenPoints);
 router.post("/minigen/deduct-points", authMiddleware, deductMinigenPoints);
+router.put("/user/minigen-push-token", authMiddleware, registerMinigenPushToken);
 router.use(legacyRouter);
 
 module.exports = router;
