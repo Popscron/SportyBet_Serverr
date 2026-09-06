@@ -9,8 +9,15 @@ const MIN_BET = 10;
 const MAX_BET = 2500000;
 const TURN_LIMIT = 5;
 const ROUND_TTL_MS = 30 * 60 * 1000;
-/** Reddict website + app shared signal TTL (must match website poll interval). */
-const DICT_RESULT_TTL_MS = 30 * 1000;
+/**
+ * Reddict website + app shared signal TTL. Must stay identical to
+ * flowdict_server/routes/redBlackRoute.js's copy of this constant (both read
+ * the same RedBlackResult collection). Kept long enough that a normal
+ * confirm-bet flow in the app finishes before the signal rotates — too short
+ * and the site can show a color that has already expired by the time the
+ * player places the matching bet.
+ */
+const DICT_RESULT_TTL_MS = 60 * 1000;
 
 const SUITS = ["♥", "♦", "♣", "♠"];
 const RED_SUITS = ["♥", "♦"];
@@ -264,7 +271,14 @@ async function playHand(body) {
       round.deck = buildShuffledDeck();
     }
 
-    const dictRow = await loadActiveDictResult(dictRoundId);
+    // If the roundId the client captured earlier has since expired/rotated,
+    // fall back to whatever dict result is live *right now* instead of an
+    // unrelated random card — that keeps the played card tied to a real
+    // published signal (matching the website) rather than pure chance.
+    let dictRow = await loadActiveDictResult(dictRoundId);
+    if (!dictRow) {
+      dictRow = await loadOrCreateCurrentDictResult();
+    }
     const card = resolveDictPlayCard(round.deck, dictRow);
     const won = didPickWin(pick, card);
     const winAmount = won ? finalStake * 2 : 0;
@@ -483,47 +497,54 @@ async function loadActiveDictResult(dictRoundId) {
   });
 }
 
+/** Get the currently published dict result, minting a new one if the previous one expired. */
+async function loadOrCreateCurrentDictResult() {
+  const now = new Date();
+  let currentResult = await RedBlackResult.findOne({
+    expiresAt: { $gt: now },
+    isUsed: false,
+  }).sort({ createdAt: -1 });
+
+  if (!currentResult) {
+    let color = generateDictCardColor();
+
+    try {
+      const lastTwo = await RedBlackResult.find({})
+        .sort({ createdAt: -1 })
+        .limit(2)
+        .lean();
+
+      if (
+        Array.isArray(lastTwo) &&
+        lastTwo.length === 2 &&
+        lastTwo[0]?.color &&
+        lastTwo[0].color === lastTwo[1]?.color &&
+        lastTwo[0].color === color
+      ) {
+        color = color === "RED" ? "BLACK" : "RED";
+      }
+    } catch (e) {
+      console.warn("RedBlackResult streak cap failed:", e?.message || e);
+    }
+
+    const roundId = generateDictRoundId();
+    const expiresAt = new Date(now.getTime() + DICT_RESULT_TTL_MS);
+
+    currentResult = await RedBlackResult.create({
+      color,
+      card: pickRandomCardForColor(color),
+      roundId,
+      expiresAt,
+      isUsed: false,
+    });
+  }
+
+  return currentResult;
+}
+
 async function getCurrentResult() {
   try {
-    const now = new Date();
-    let currentResult = await RedBlackResult.findOne({
-      expiresAt: { $gt: now },
-      isUsed: false,
-    }).sort({ createdAt: -1 });
-
-    if (!currentResult) {
-      let color = generateDictCardColor();
-
-      try {
-        const lastTwo = await RedBlackResult.find({})
-          .sort({ createdAt: -1 })
-          .limit(2)
-          .lean();
-
-        if (
-          Array.isArray(lastTwo) &&
-          lastTwo.length === 2 &&
-          lastTwo[0]?.color &&
-          lastTwo[0].color === lastTwo[1]?.color &&
-          lastTwo[0].color === color
-        ) {
-          color = color === "RED" ? "BLACK" : "RED";
-        }
-      } catch (e) {
-        console.warn("RedBlackResult streak cap failed:", e?.message || e);
-      }
-
-      const roundId = generateDictRoundId();
-      const expiresAt = new Date(now.getTime() + DICT_RESULT_TTL_MS);
-
-      currentResult = await RedBlackResult.create({
-        color,
-        card: pickRandomCardForColor(color),
-        roundId,
-        expiresAt,
-        isUsed: false,
-      });
-    }
+    const currentResult = await loadOrCreateCurrentDictResult();
 
     return {
       status: 200,
