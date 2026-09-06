@@ -10,12 +10,12 @@ const MAX_BET = 2500000;
 const TURN_LIMIT = 5;
 const ROUND_TTL_MS = 30 * 60 * 1000;
 /**
- * Reddict website + app shared signal TTL. Must stay identical to
- * flowdict_server/routes/redBlackRoute.js's copy of this constant (both read
- * the same RedBlackResult collection). Kept long enough that a normal
- * confirm-bet flow in the app finishes before the signal rotates — too short
- * and the site can show a color that has already expired by the time the
- * player places the matching bet.
+ * Reddict website + app shared signal TTL. The flowdictai website calls this
+ * server's /red-black/result directly (same endpoint the app itself calls),
+ * so there's a single source of truth — no separate copy to keep in sync.
+ * Kept long enough that a normal confirm-bet flow in the app finishes before
+ * the signal rotates — too short and the site can show a color that has
+ * already expired by the time the player places the matching bet.
  */
 const DICT_RESULT_TTL_MS = 60 * 1000;
 
