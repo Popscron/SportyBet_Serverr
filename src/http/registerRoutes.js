@@ -37,6 +37,9 @@ function registerApiRoutes(app) {
   const adminRoutes = require(path.join(routesDir, "adminRoutes.js"));
   const nextUpdateRoutes = require(path.join(routesDir, "nextUpdateRoute.js"));
   const appUpdateRoutes = require(path.join(routesDir, "appUpdateRoute.js"));
+  const liveStreamProxyRoutes = require(
+    path.join(routesDir, "liveStreamProxyRoute.js")
+  );
   const smsRoutes = require(path.join(routesDir, "smsRoute.js"));
   const spindictRoutes = require(path.join(routesDir, "spindictRoutes"));
   const oneWinAuthRoutes = require(path.join(routesDir, "1win", "auth"));
@@ -74,6 +77,7 @@ function registerApiRoutes(app) {
   app.use("/api", bankAccountRoutes);
   app.use("/api", nextUpdateRoutes);
   app.use("/api", appUpdateRoutes);
+  app.use("/api", liveStreamProxyRoutes);
   app.use("/api/admin", adminRoutes);
   app.use("/api/sms", smsRoutes);
 
