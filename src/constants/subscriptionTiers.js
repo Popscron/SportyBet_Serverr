@@ -8,6 +8,7 @@ const GAME_IDS = {
   INSTANT_FOOTBALL: "instantFootball",
   HERO_CRASH: "heroCrash",
   RED_BLACK: "redBlack",
+  AVIATOR: "aviator",
 };
 
 const PERMISSION_IDS = {
@@ -19,6 +20,7 @@ const ALL_GAMES = [
   GAME_IDS.INSTANT_FOOTBALL,
   GAME_IDS.HERO_CRASH,
   GAME_IDS.RED_BLACK,
+  GAME_IDS.AVIATOR,
 ];
 
 /** Split Premium Plus allowedGames into playable games vs optional permissions. */
@@ -40,6 +42,7 @@ const SUBSCRIPTION_TIERS = [
   "Games Instant Virtuals",
   "Games Sporty Hero",
   "Games Red Black",
+  "Games Aviator",
   "Premium",
   "Premium Pro",
   "Premium Plus",
@@ -77,6 +80,15 @@ const TIER_DEFINITIONS = {
   "Games Sporty Hero": {
     label: "Games — Sporty Hero only",
     games: [GAME_IDS.HERO_CRASH],
+    openBets: false,
+    matchDetails: true,
+    maxDevices: 1,
+    isPremium: false,
+    gamesTab: true,
+  },
+  "Games Aviator": {
+    label: "Games — Aviator only",
+    games: [GAME_IDS.AVIATOR],
     openBets: false,
     matchDetails: true,
     maxDevices: 1,

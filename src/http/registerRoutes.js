@@ -27,6 +27,7 @@ function registerApiRoutes(app) {
   const manualCardRoutes = require(path.join(routesDir, "manualCardRoute.js"));
   const spinBottleRoutes = require(path.join(routesDir, "spinBottleRoute.js"));
   const heroCrashRoutes = require(path.join(routesDir, "heroCrashRoute.js"));
+  const aviatorRoutes = require(path.join(routesDir, "aviatorRoute.js"));
   const redBlackRoutes = require(path.join(routesDir, "redBlackRoute.js"));
   const virtualGameRoutes = require(path.join(routesDir, "virtualGameRoute.js"));
   const instantFootballMatchRoutes = require(
@@ -67,6 +68,7 @@ function registerApiRoutes(app) {
   app.use("/api", manualCardRoutes);
   app.use("/api", spinBottleRoutes);
   app.use("/api", heroCrashRoutes);
+  app.use("/api", aviatorRoutes);
   app.use("/api", redBlackRoutes);
   app.use("/api", virtualGameRoutes);
   app.use("/api", instantFootballMatchRoutes);
