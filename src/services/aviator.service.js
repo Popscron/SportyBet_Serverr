@@ -4,6 +4,10 @@ const User = require("../../models/user");
 const { GAME_IDS } = require("../constants/subscriptionTiers");
 const { assertGameAccess } = require("./auth/subscription.helper");
 
+// A published round is only valid for this long before the next GET
+// auto-generates a new one — mirrors redBlack.service.js's DICT_RESULT_TTL_MS.
+const ROUND_TTL_MS = 30 * 1000;
+
 /**
  * @returns {{ user: object } | { error: { status, json } }}
  */
@@ -68,7 +72,7 @@ async function getCurrentResult() {
     if (!currentRound) {
       const crashPoint = generateCrashPoint();
       const roundId = generateRoundId();
-      const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+      const expiresAt = new Date(now.getTime() + ROUND_TTL_MS);
 
       currentRound = new AviatorRound({
         crashPoint,
