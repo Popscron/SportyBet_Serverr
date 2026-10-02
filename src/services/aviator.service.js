@@ -77,10 +77,14 @@ function flightMs(crashPoint) {
   return Math.ceil((Math.log(crashPoint) / GROWTH_RATE) * 1000);
 }
 
-/** Creates round number `seq` starting its betting window at `waitStartMs`.
- * Two requests racing to create the same `seq` hit the unique index; the
- * loser just reads the winner's round, so everyone sees one schedule. */
+/** Round number `seq` starting its betting window at `waitStartMs` — read if
+ * it's already planned, created otherwise. Two requests racing to create the
+ * same `seq` hit the unique index; the loser reads the winner's round, so
+ * everyone (every phone, every website user) sees one schedule. */
 async function createScheduledRound(seq, waitStartMs) {
+  const existing = await AviatorRound.findOne({ seq });
+  if (existing) return existing;
+
   const crashPoint = generateCrashPoint();
   const takeoffMs = waitStartMs + WAITING_MS;
   const crashMs = takeoffMs + flightMs(crashPoint);
@@ -103,40 +107,47 @@ async function createScheduledRound(seq, waitStartMs) {
   return AviatorRound.findOne({ seq });
 }
 
+/** The round right after `round` on the schedule (back to back). */
+function roundAfter(round) {
+  return createScheduledRound(round.seq + 1, round.endAt.getTime());
+}
+
 /**
  * The live schedule at `now`: `current` is the round whose betting window,
- * flight or "flew away" screen is on now; `next` follows it back to back
- * (created once `current` has taken off, so it's ready by the crash).
+ * flight or "flew away" screen is on now; `next` follows it back to back.
+ * Rounds may already be planned further ahead (see findUpcomingInRange).
  */
 async function getTimeline(now = Date.now()) {
-  let latest = await AviatorRound.findOne({ seq: { $exists: true } }).sort({ seq: -1 });
+  let current = await AviatorRound.findOne({
+    seq: { $exists: true },
+    waitStartAt: { $lte: new Date(now) },
+  }).sort({ seq: -1 });
 
-  if (!latest || latest.endAt.getTime() <= now) {
+  if (!current || current.endAt.getTime() <= now) {
+    // Nothing on now: either no schedule yet, or every planned round is over
+    // (planned rounds chain back to back, so a later one would be "on").
+    const latest = await AviatorRound.findOne({ seq: { $exists: true } }).sort({ seq: -1 });
     const chain = latest && now - latest.endAt.getTime() < CHAIN_GRACE_MS;
-    latest = await createScheduledRound(
+    current = await createScheduledRound(
       (latest?.seq || 0) + 1,
       chain ? latest.endAt.getTime() : now
     );
   }
 
-  let current = latest;
-  let next = null;
-  if (latest.waitStartAt.getTime() > now) {
-    // `latest` is already the next round; the one before it is on now.
-    next = latest;
-    current = (await AviatorRound.findOne({ seq: latest.seq - 1 })) || latest;
-    if (current === latest) next = null;
-  } else if (now >= current.takeoffAt.getTime()) {
-    next = await createScheduledRound(current.seq + 1, current.endAt.getTime());
-  }
+  // Once the current round has taken off, make sure the next one exists so
+  // phones have it by the crash; before that, use it if already planned.
+  const next =
+    now >= current.takeoffAt.getTime()
+      ? await roundAfter(current)
+      : await AviatorRound.findOne({ seq: current.seq + 1 });
   return { now, current, next };
 }
 
 /** The round the next take-off will use: `current` until it crashes, then `next`. */
 async function getUpcomingRound() {
   const { now, current, next } = await getTimeline();
-  if (now < current.crashAt.getTime() || !next) return current;
-  return next;
+  if (now < current.crashAt.getTime()) return current;
+  return next || roundAfter(current);
 }
 
 /** The round a bet placed now belongs to: `current` while its betting window
@@ -144,7 +155,68 @@ async function getUpcomingRound() {
 async function getBettingRound() {
   const { now, current, next } = await getTimeline();
   if (now < current.takeoffAt.getTime()) return current;
-  return next || (await createScheduledRound(current.seq + 1, current.endAt.getTime()));
+  return next || roundAfter(current);
+}
+
+// How far ahead a range lookup may plan rounds. The 20x–70x range hits
+// roughly 1 round in 30, so this almost always finds one (~1 hour ahead).
+const MAX_LOOKAHEAD_ROUNDS = 150;
+// A round is only offered while its betting window still has this long to
+// run, so the player has time to place a bet before take-off.
+const MIN_BET_TIME_MS = 2500;
+
+/**
+ * The first round on the schedule that hasn't taken off yet (with time left
+ * to bet) and whose crash point is within [min, max]. Rounds are planned
+ * ahead as needed and stored, so every caller gets the same answer and the
+ * phones later fly exactly these rounds.
+ */
+async function findUpcomingInRange(min, max) {
+  const { now, current } = await getTimeline();
+  const planned = await AviatorRound.find({ seq: { $gt: current.seq } }).sort({ seq: 1 });
+
+  let round = current;
+  for (let ahead = 0; ahead <= MAX_LOOKAHEAD_ROUNDS; ahead++) {
+    if (ahead > 0) {
+      const nextPlanned = planned[ahead - 1];
+      round = nextPlanned && nextPlanned.seq === round.seq + 1 ? nextPlanned : await roundAfter(round);
+    }
+    const bettable = round.takeoffAt.getTime() - now >= MIN_BET_TIME_MS;
+    if (bettable && round.crashPoint >= min && round.crashPoint <= max) {
+      return { now, round, roundsAhead: ahead };
+    }
+  }
+  return { now, round: null, roundsAhead: null };
+}
+
+/** GET /aviator/upcoming?min=&max= — next round in a multiplier range. */
+async function getUpcomingInRange(query = {}) {
+  const min = Number(query.min);
+  const max = Number(query.max);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min > max) {
+    return { status: 400, json: { success: false, error: "min and max are required (min <= max)" } };
+  }
+  try {
+    const { now, round, roundsAhead } = await findUpcomingInRange(min, max);
+    return {
+      status: 200,
+      json: {
+        success: true,
+        data: {
+          serverNow: now,
+          found: !!round,
+          roundsAhead,
+          round: roundSchedule(round),
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error finding upcoming aviator round:", error);
+    return {
+      status: 500,
+      json: { success: false, error: "Failed to find upcoming round", message: error.message },
+    };
+  }
 }
 
 function roundSchedule(round) {
@@ -514,6 +586,7 @@ async function betHistory(query) {
 module.exports = {
   getCurrentResult,
   getState,
+  getUpcomingInRange,
   markUsed,
   placeBet,
   cancelBet,
