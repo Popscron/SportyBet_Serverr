@@ -53,6 +53,15 @@ function generateRoundId() {
   return `AVI-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+/** Nudge a whole-number crash point (1.00, 2.00, ...) by a few cents so a
+ * round never lands on a "straight" value. */
+function avoidWholeNumber(point) {
+  if (Math.round(point * 100) % 100 !== 0) return point;
+  const cents = 1 + Math.floor(Math.random() * 9); // 0.01 – 0.09
+  const nudged = point >= 1000 ? point - cents / 100 : point + cents / 100;
+  return Math.round(nudged * 100) / 100;
+}
+
 /** Same long-tail distribution as the client's local fallback, so a round
  * generated here "feels" like the rest of the Aviator round history. */
 function generateCrashPoint(minPoint = 1) {
@@ -66,9 +75,10 @@ function generateCrashPoint(minPoint = 1) {
       const raw = (1 - houseEdge) / (1 - r);
       point = Math.round(Math.min(Math.max(raw, 1.01), 1000) * 100) / 100;
     }
+    point = avoidWholeNumber(point);
     if (point >= minPoint) return point;
   }
-  return Math.max(minPoint, 2);
+  return avoidWholeNumber(Math.max(minPoint, 2));
 }
 
 /** How long the plane flies before reaching `crashPoint`. */
