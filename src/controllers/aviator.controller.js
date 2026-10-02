@@ -6,6 +6,11 @@ exports.getCurrentResult = async (req, res) => {
   sendResult(res, result);
 };
 
+exports.getUpcomingInRange = async (req, res) => {
+  const result = await aviatorService.getUpcomingInRange(req.query);
+  sendResult(res, result);
+};
+
 exports.getState = async (req, res) => {
   const result = await aviatorService.getState();
   sendResult(res, result);
