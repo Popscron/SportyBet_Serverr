@@ -26,6 +26,13 @@ const aviatorRoundSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Shared round clock (see aviator.service.js getTimeline): the round number
+  // and when its betting window, take-off, crash and "flew away" screen end.
+  seq: { type: Number, unique: true, sparse: true },
+  waitStartAt: Date,
+  takeoffAt: Date,
+  crashAt: Date,
+  endAt: Date,
 });
 
 // Faster queries for active round lookup
