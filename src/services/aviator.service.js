@@ -4,9 +4,20 @@ const User = require("../../models/user");
 const { GAME_IDS } = require("../constants/subscriptionTiers");
 const { assertGameAccess } = require("./auth/subscription.helper");
 
-// A published round is only valid for this long before the next GET
-// auto-generates a new one — mirrors redBlack.service.js's DICT_RESULT_TTL_MS.
-const ROUND_TTL_MS = 30 * 1000;
+// --- Shared round clock --------------------------------------------------------
+// Every phone flies the same round at the same moment: rounds run back to
+// back on one server-side schedule, and the app follows it (GET
+// /aviator/state). These timings must match SportyBet_App's
+// AviatorGameScreen (WAITING_MS, POST_CRASH_MS) and AviatorStage
+// (GROWTH_RATE: multiplier = e^(0.0832 * seconds)).
+const WAITING_MS = 7500;
+const POST_CRASH_MS = 5400;
+const GROWTH_RATE = 0.0832;
+// If nobody asked for a while, a fresh schedule starts "now" instead of
+// back-filling every round that would have been played meanwhile.
+const CHAIN_GRACE_MS = WAITING_MS;
+// Rounds are kept a while after they end so late bet/crash calls still find them.
+const KEEP_AFTER_END_MS = 10 * 60 * 1000;
 
 /**
  * @returns {{ user: object } | { error: { status, json } }}
@@ -60,42 +71,137 @@ function generateCrashPoint(minPoint = 1) {
   return Math.max(minPoint, 2);
 }
 
-/** The round the next take-off will use: the newest unused, unexpired one,
- * or a freshly generated one. Shared by GET /aviator/result and by
- * placeBet, so a bet sent before the client's result fetch came back still
- * lands on the same round that fetch returns. */
-async function getOrCreateUpcomingRound() {
-  const now = new Date();
-  const query = { expiresAt: { $gt: now }, isUsed: false };
-
-  let round = await AviatorRound.findOne(query).sort({ createdAt: -1 });
-  if (round) return round;
-
-  await new AviatorRound({
-    crashPoint: generateCrashPoint(),
-    roundId: generateRoundId(),
-    expiresAt: new Date(now.getTime() + ROUND_TTL_MS),
-    isUsed: false,
-  }).save();
-
-  // Re-read instead of returning the doc just saved: if a GET and a bet
-  // both found nothing and each created a round, both now converge on the
-  // newest one.
-  return AviatorRound.findOne(query).sort({ createdAt: -1 });
+/** How long the plane flies before reaching `crashPoint`. */
+function flightMs(crashPoint) {
+  if (!(crashPoint > 1)) return 0;
+  return Math.ceil((Math.log(crashPoint) / GROWTH_RATE) * 1000);
 }
 
+/** Creates round number `seq` starting its betting window at `waitStartMs`.
+ * Two requests racing to create the same `seq` hit the unique index; the
+ * loser just reads the winner's round, so everyone sees one schedule. */
+async function createScheduledRound(seq, waitStartMs) {
+  const crashPoint = generateCrashPoint();
+  const takeoffMs = waitStartMs + WAITING_MS;
+  const crashMs = takeoffMs + flightMs(crashPoint);
+  const endMs = crashMs + POST_CRASH_MS;
+  try {
+    await AviatorRound.create({
+      seq,
+      roundId: generateRoundId(),
+      crashPoint,
+      waitStartAt: new Date(waitStartMs),
+      takeoffAt: new Date(takeoffMs),
+      crashAt: new Date(crashMs),
+      endAt: new Date(endMs),
+      expiresAt: new Date(endMs + KEEP_AFTER_END_MS),
+      isUsed: false,
+    });
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+  }
+  return AviatorRound.findOne({ seq });
+}
+
+/**
+ * The live schedule at `now`: `current` is the round whose betting window,
+ * flight or "flew away" screen is on now; `next` follows it back to back
+ * (created once `current` has taken off, so it's ready by the crash).
+ */
+async function getTimeline(now = Date.now()) {
+  let latest = await AviatorRound.findOne({ seq: { $exists: true } }).sort({ seq: -1 });
+
+  if (!latest || latest.endAt.getTime() <= now) {
+    const chain = latest && now - latest.endAt.getTime() < CHAIN_GRACE_MS;
+    latest = await createScheduledRound(
+      (latest?.seq || 0) + 1,
+      chain ? latest.endAt.getTime() : now
+    );
+  }
+
+  let current = latest;
+  let next = null;
+  if (latest.waitStartAt.getTime() > now) {
+    // `latest` is already the next round; the one before it is on now.
+    next = latest;
+    current = (await AviatorRound.findOne({ seq: latest.seq - 1 })) || latest;
+    if (current === latest) next = null;
+  } else if (now >= current.takeoffAt.getTime()) {
+    next = await createScheduledRound(current.seq + 1, current.endAt.getTime());
+  }
+  return { now, current, next };
+}
+
+/** The round the next take-off will use: `current` until it crashes, then `next`. */
+async function getUpcomingRound() {
+  const { now, current, next } = await getTimeline();
+  if (now < current.crashAt.getTime() || !next) return current;
+  return next;
+}
+
+/** The round a bet placed now belongs to: `current` while its betting window
+ * is open, otherwise the next one. */
+async function getBettingRound() {
+  const { now, current, next } = await getTimeline();
+  if (now < current.takeoffAt.getTime()) return current;
+  return next || (await createScheduledRound(current.seq + 1, current.endAt.getTime()));
+}
+
+function roundSchedule(round) {
+  if (!round) return null;
+  return {
+    roundId: round.roundId,
+    crashPoint: round.crashPoint,
+    waitStartAt: round.waitStartAt.getTime(),
+    takeoffAt: round.takeoffAt.getTime(),
+    crashAt: round.crashAt.getTime(),
+    endAt: round.endAt.getTime(),
+  };
+}
+
+/** GET /aviator/state — the shared clock the app follows. `serverNow` lets
+ * each phone correct for its own clock being off. */
+async function getState() {
+  try {
+    const { now, current, next } = await getTimeline();
+    return {
+      status: 200,
+      json: {
+        success: true,
+        data: {
+          serverNow: now,
+          current: roundSchedule(current),
+          next: roundSchedule(next),
+          timings: { waitingMs: WAITING_MS, postCrashMs: POST_CRASH_MS, growthRate: GROWTH_RATE },
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching aviator state:", error);
+    return {
+      status: 500,
+      json: { success: false, error: "Failed to fetch aviator state", message: error.message },
+    };
+  }
+}
+
+/** GET /aviator/result — the next crash point (what the website shows): the
+ * round on now until it crashes, then the one after it. */
 async function getCurrentResult() {
   try {
-    const currentRound = await getOrCreateUpcomingRound();
+    const round = await getUpcomingRound();
 
     return {
       status: 200,
       json: {
         success: true,
         data: {
-          crashPoint: currentRound.crashPoint,
-          roundId: currentRound.roundId,
-          expiresAt: currentRound.expiresAt,
+          crashPoint: round.crashPoint,
+          roundId: round.roundId,
+          // Kept for existing callers: the moment this result stops being "next".
+          expiresAt: round.crashAt,
+          takeoffAt: round.takeoffAt,
+          crashAt: round.crashAt,
         },
       },
     };
@@ -176,7 +282,7 @@ async function placeBet(body) {
     let { roundId } = body;
     let round = null;
     if (!roundId) {
-      round = await getOrCreateUpcomingRound();
+      round = await getBettingRound();
       roundId = round.roundId;
     }
 
@@ -407,6 +513,7 @@ async function betHistory(query) {
 
 module.exports = {
   getCurrentResult,
+  getState,
   markUsed,
   placeBet,
   cancelBet,

@@ -6,6 +6,11 @@ exports.getCurrentResult = async (req, res) => {
   sendResult(res, result);
 };
 
+exports.getState = async (req, res) => {
+  const result = await aviatorService.getState();
+  sendResult(res, result);
+};
+
 exports.markUsed = async (req, res) => {
   const result = await aviatorService.markUsed(req.body);
   sendResult(res, result);

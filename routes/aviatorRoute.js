@@ -3,6 +3,7 @@ const router = express.Router();
 const aviatorController = require("../src/controllers/aviator.controller");
 
 router.get("/aviator/result", aviatorController.getCurrentResult);
+router.get("/aviator/state", aviatorController.getState);
 router.post("/aviator/mark-used", aviatorController.markUsed);
 router.post("/aviator/bet", aviatorController.placeBet);
 router.post("/aviator/cancel", aviatorController.cancelBet);
