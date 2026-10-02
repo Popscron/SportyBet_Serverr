@@ -60,29 +60,33 @@ function generateCrashPoint(minPoint = 1) {
   return Math.max(minPoint, 2);
 }
 
+/** The round the next take-off will use: the newest unused, unexpired one,
+ * or a freshly generated one. Shared by GET /aviator/result and by
+ * placeBet, so a bet sent before the client's result fetch came back still
+ * lands on the same round that fetch returns. */
+async function getOrCreateUpcomingRound() {
+  const now = new Date();
+  const query = { expiresAt: { $gt: now }, isUsed: false };
+
+  let round = await AviatorRound.findOne(query).sort({ createdAt: -1 });
+  if (round) return round;
+
+  await new AviatorRound({
+    crashPoint: generateCrashPoint(),
+    roundId: generateRoundId(),
+    expiresAt: new Date(now.getTime() + ROUND_TTL_MS),
+    isUsed: false,
+  }).save();
+
+  // Re-read instead of returning the doc just saved: if a GET and a bet
+  // both found nothing and each created a round, both now converge on the
+  // newest one.
+  return AviatorRound.findOne(query).sort({ createdAt: -1 });
+}
+
 async function getCurrentResult() {
   try {
-    const now = new Date();
-
-    let currentRound = await AviatorRound.findOne({
-      expiresAt: { $gt: now },
-      isUsed: false,
-    }).sort({ createdAt: -1 });
-
-    if (!currentRound) {
-      const crashPoint = generateCrashPoint();
-      const roundId = generateRoundId();
-      const expiresAt = new Date(now.getTime() + ROUND_TTL_MS);
-
-      currentRound = new AviatorRound({
-        crashPoint,
-        roundId,
-        expiresAt,
-        isUsed: false,
-      });
-
-      await currentRound.save();
-    }
+    const currentRound = await getOrCreateUpcomingRound();
 
     return {
       status: 200,
@@ -151,20 +155,30 @@ async function markUsed(body) {
 
 async function placeBet(body) {
   try {
-    const { userId, roundId, panelId, stake, currencyType } = body;
+    const { userId, panelId, stake, currencyType } = body;
 
-    if (!userId || !roundId || !panelId || stake === undefined) {
+    if (!userId || !panelId || stake === undefined) {
       return {
         status: 400,
         json: {
           success: false,
-          error: "Missing required fields: userId, roundId, panelId, stake",
+          error: "Missing required fields: userId, panelId, stake",
         },
       };
     }
 
     const access = await checkAviatorAccess(userId);
     if (access.error) return access.error;
+
+    // roundId is optional: the client omits it when its /aviator/result
+    // fetch hasn't come back yet, and the bet goes on the upcoming round.
+    // The round is returned either way so the client can fly that round.
+    let { roundId } = body;
+    let round = null;
+    if (!roundId) {
+      round = await getOrCreateUpcomingRound();
+      roundId = round.roundId;
+    }
 
     const bet = new AviatorBet({
       userId,
@@ -180,7 +194,14 @@ async function placeBet(body) {
 
     return {
       status: 201,
-      json: { success: true, data: bet, message: "Bet saved successfully" },
+      json: {
+        success: true,
+        data: bet,
+        round: round
+          ? { roundId: round.roundId, crashPoint: round.crashPoint, expiresAt: round.expiresAt }
+          : { roundId },
+        message: "Bet saved successfully",
+      },
     };
   } catch (error) {
     console.error("Error saving aviator bet:", error);
@@ -260,14 +281,18 @@ async function cashout(body) {
     const access = await checkAviatorAccess(userId);
     if (access.error) return access.error;
 
+    // A crashed bet is accepted too, as long as the cash out came in below
+    // the crash point: the client's crash report can reach the server just
+    // before a cashout made at nearly the same moment (or one an auto cash
+    // out made for a round that ended while the app was in the background).
     const bet = await AviatorBet.findOne({
       userId,
       roundId,
       panelId,
-      status: "active",
-    });
+      status: { $in: ["active", "crashed"] },
+    }).sort({ createdAt: -1 });
 
-    if (!bet) {
+    if (!bet || (bet.status === "crashed" && !(cashoutMultiplier < bet.crashPoint))) {
       return {
         status: 404,
         json: { success: false, error: "Active bet not found" },
