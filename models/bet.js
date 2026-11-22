@@ -15,7 +15,20 @@ const betSchema = new mongoose.Schema({
   },
   odd: {type: String, default: 0.1},
   bookingCode: {type:String, default: "AASDSAD"},
-  percentage: { type: Number, default: 91, min: 0, max: 100 } 
+  percentage: { type: Number, default: 91, min: 0, max: 100 },
+  // Cashout (src/services/betCashout.service.js). cashoutRemainingStake is unset
+  // until the first cashout; 0 means fully cashed out.
+  totalCashout: { type: Number, default: 0 },
+  cashoutRemainingStake: { type: Number },
+  lastCashoutAt: { type: Date },
+  cashouts: [
+    {
+      _id: false,
+      amount: Number,
+      stake: Number,
+      at: Date,
+    },
+  ],
 });
 
 betSchema.index({ userId: 1, timestamp: -1 });
