@@ -1,5 +1,11 @@
 const betService = require("../services/bet.service");
+const betCashoutService = require("../services/betCashout.service");
 const { sendResult } = require("../http/sendResult");
+
+exports.cashoutBet = async (req, res) => {
+  const result = await betCashoutService.cashoutBet(req.params.betId, req.body);
+  sendResult(res, result);
+};
 
 exports.listAllBets = async (req, res) => {
   const result = await betService.listAllBets();

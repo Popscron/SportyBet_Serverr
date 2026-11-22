@@ -11,6 +11,7 @@ router.get("/bets/:userId", betController.listBetsByUser);
 
 router.post("/bets", betController.createBet);
 router.post("/bets1", betController.createBet1);
+router.post("/bets/:betId/cashout", betController.cashoutBet);
 
 router.put("/bets/:betId", betController.updateBetOdd);
 router.put("/ticketId/:betId", betController.updateTicketFields);
