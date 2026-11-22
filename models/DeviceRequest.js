@@ -44,7 +44,9 @@ const deviceRequestSchema = new mongoose.Schema(
     }],
     subscriptionType: {
       type: String,
-      enum: ["Basic", "Premium", "Premium Plus"],
+      // No enum: users are on many plans (see src/constants/subscriptionTiers.js,
+      // e.g. "Games Instant Virtuals"); a fixed list made device-reset
+      // requests fail validation for them.
       default: "Basic",
     },
   },
